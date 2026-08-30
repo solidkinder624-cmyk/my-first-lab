@@ -1,0 +1,64 @@
+name: Daily AI News Digest
+
+# Trigger layer (page 8: "毎日8:00"). This workflow only decides *when* to
+# run -- every decision about *what* to do lives in ai_news_agent/.
+on:
+  schedule:
+    - cron: "0 23 * * *" # 08:00 JST (UTC+9) every day
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Target date (YYYY-MM-DD). Leave empty for today (UTC)."
+        required: false
+
+permissions:
+  contents: write
+
+# Guardrail: never let two runs of this job overlap (page 5: "複数エージェントが
+# 同時に仕事を始める"). A second scheduled/manual trigger waits for the first
+# to finish instead of racing it; job_id-based idempotency then makes it a
+# safe no-op if the first run already completed.
+concurrency:
+  group: daily-ai-news-agent
+  cancel-in-progress: false
+
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run daily news agent
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          AI_NEWS_SOURCE_URL: ${{ secrets.AI_NEWS_SOURCE_URL }}
+        run: |
+          if [ -n "${{ github.event.inputs.date }}" ]; then
+            python3 run_daily_news_agent.py --date "${{ github.event.inputs.date }}"
+          else
+            python3 run_daily_news_agent.py
+          fi
+
+      # Runners are ephemeral, so job state (design principle 3: 状態を外部へ
+      # 保存する) is persisted back to the repo, not left on the runner disk.
+      # Runs even if the step above failed, so a partial/failed job's state
+      # (e.g. Notion saved but Slack not yet sent) survives for the next run
+      # to resume from.
+      - name: Persist job state
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f state/*.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: persist daily-ai-news job state [skip ci]"
+            git push
+          else
+            echo "no state changes to commit"
+          fi
