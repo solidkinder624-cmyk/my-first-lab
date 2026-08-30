@@ -20,7 +20,7 @@ python3 -m unittest discover -s tests -v
 
 | 層 | このリポジトリでの実装 |
 |---|---|
-| **Trigger** (いつ始めるか) | `run_daily_news_agent.py`。本番では cron や Claude Routines が毎朝8時にこれを呼ぶだけ。判断は一切持たない |
+| **Trigger** (いつ始めるか) | `run_daily_news_agent.py`。`.github/workflows/daily-ai-news.yml` が毎朝8時(JST)にこれを呼ぶだけ。判断は一切持たない |
 | **Workflow** (何をどの順で) | `ai_news_agent/orchestrator.py` の `run_job()`。取得→24h以内に絞る→重複除去→AIが重要度評価→上位5件要約→JSON検証→Notion保存→Slack通知 |
 | **Agent** (どこで考えさせるか) | `ai_news_agent/pipeline.py` の `rank_importance()` / `summarize()` のみ。他はすべて機械的処理としてコード側に置く（設計原則1） |
 | **Guardrail** (どこで止めるか) | `ai_news_agent/guardrails.py` の定数と、`orchestrator.py` 内の各チェック |
@@ -73,3 +73,26 @@ python3 -m unittest discover -s tests -v
 - `SLACK_WEBHOOK_URL` — Slack通知を実際に送る
 - `AI_NEWS_SIMULATE` — テスト/デモ用。`network_error` / `auth_error` / `no_articles`
   を指定するとその障害を強制的に発生させ、ガードレールの挙動を確認できる
+
+### 毎朝8時の自動実行 (.github/workflows/daily-ai-news.yml)
+
+GitHub Actionsのscheduled workflowが Trigger 層。`cron: "0 23 * * *"`
+(UTC) = 毎朝8:00 JST に `run_daily_news_agent.py` を実行する。
+
+- **状態の永続化**: Actionsのランナーは実行ごとに使い捨てなので、実行後に
+  `state/*.json` をリポジトリへコミットして外部保存する（設計原則3をCI環境でも維持）
+- **多重起動防止**: `concurrency` グループにより、前回の実行が終わるまで次の
+  トリガーは待機する（p5「複数エージェントが同時に仕事を始める」への対策）
+- **手動実行**: GitHub の Actions タブから `workflow_dispatch` で手動実行も可能
+  （`date` 入力欄で任意の日付を指定してテストできる）
+- **失敗の可視化**: エージェント自身が失敗すると `run_daily_news_agent.py` は
+  exit code 1 を返しジョブが失敗扱いになる（GitHubのデフォルト通知で気付ける）。
+  加えて `SLACK_WEBHOOK_URL` を設定していれば認証エラー・記事0件などの
+  ガードレール発火時にSlackへも警告が飛ぶ
+
+**セットアップ手順**（Notion/Slackに実際に送りたい場合）:
+1. リポジトリの Settings → Secrets and variables → Actions で以下を登録
+   - `NOTION_TOKEN` / `NOTION_DATABASE_ID`
+   - `SLACK_WEBHOOK_URL`
+   - `AI_NEWS_SOURCE_URL`（省略可。未設定なら同梱のデモ記事を使用）
+2. 何も設定しなければ、毎朝dry-run（標準出力に表示するだけ）で動き続ける
