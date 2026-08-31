@@ -1,0 +1,40 @@
+name: Domino Crash verify
+
+# Roblox Studio を開かずに、ゲームロジックの純関数部分
+# (Config / Blueprint / Collapse / Progress / HitRules) を Luau CLI で実行して検証する。
+# 構造物が生成直後に自壊しないこと・弱点を叩けば連鎖崩壊すること・
+# 地上から届く打撃だけで必ず100%まで壊し切れること など 117 項目
+# (roblox/domino-crash/verify.luau)。
+on:
+  push:
+    paths:
+      - "roblox/domino-crash/**"
+      - ".github/workflows/domino-crash-verify.yml"
+  pull_request:
+    paths:
+      - "roblox/domino-crash/**"
+      - ".github/workflows/domino-crash-verify.yml"
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Luau CLI
+        run: |
+          curl -sSL -o luau.zip https://github.com/luau-lang/luau/releases/latest/download/luau-ubuntu.zip
+          unzip -q luau.zip -d "$RUNNER_TEMP/luau"
+          chmod +x "$RUNNER_TEMP/luau/luau" "$RUNNER_TEMP/luau/luau-compile"
+          echo "$RUNNER_TEMP/luau" >> "$GITHUB_PATH"
+
+      - name: Syntax check every Luau source
+        run: |
+          set -e
+          find roblox/domino-crash -name "*.luau" -print0 \
+            | xargs -0 -n1 luau-compile --binary > /dev/null
+
+      - name: Run logic verifier
+        working-directory: roblox/domino-crash
+        run: luau verify.luau
