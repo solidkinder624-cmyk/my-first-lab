@@ -69,12 +69,26 @@ function MapBuilder.applyLighting()
 	Lighting.FogEnd = 160 -- 遠くの痕跡は霧に沈む = 索敵に距離の概念が生まれる
 end
 
+-- Roblox が新規プレイス作成時に最初から置いている既定のパーツ。
+-- Baseplate は自前の Floor とほぼ同じ高さ・場所に重なり、Zファイティング
+-- (2枚の面が同じ位置を奪い合ってチラつく現象) を起こす。SpawnLocation も
+-- CharacterAutoLoads=false のこのゲームでは一切使わないので、まとめて消す。
+local DEFAULT_LEFTOVERS = { "Baseplate", "SpawnLocation" }
+
 -- grid から迷路を生成し、Workspace の Folder を返す。
 -- 壁は Grid.wallRuns で横方向にマージ済みなので、1タイル1パーツより大幅に少ない。
 function MapBuilder.build(grid): Folder
 	local existing = workspace:FindFirstChild("Maze")
 	if existing then
 		existing:Destroy()
+	end
+
+	for _, name in DEFAULT_LEFTOVERS do
+		local leftover = workspace:FindFirstChild(name)
+		if leftover then
+			print(string.format("[TraceOnly] removing leftover Workspace.%s (default place template)", name))
+			leftover:Destroy()
+		end
 	end
 
 	local folder = Instance.new("Folder")
