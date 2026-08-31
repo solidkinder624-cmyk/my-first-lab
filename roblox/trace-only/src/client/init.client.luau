@@ -21,6 +21,28 @@ local Hud = require(script.Hud)
 
 local TICK = 1 / Config.net.tickRate
 
+-- Roblox 標準のカメラ/移動コントロールを止める。CharacterAutoLoads=false でも
+-- このデフォルトスクリプト自体は動き続けており、毎フレーム
+-- workspace.CurrentCamera を自分の判断で書き換えてしまうことがあるため、
+-- 自前の CameraController(Scriptable) と競合しないよう明示的に無効化する。
+do
+	local localPlayer = Players.LocalPlayer
+	local playerScripts = localPlayer:WaitForChild("PlayerScripts")
+	local ok, playerModule = pcall(function()
+		return require(playerScripts:WaitForChild("PlayerModule", 5))
+	end)
+	if ok and playerModule then
+		pcall(function()
+			playerModule:GetControls():Disable()
+		end)
+		pcall(function()
+			playerModule:GetCameraModule():SetCameraMovementMode(Enum.CameraMovementMode.Classic)
+		end)
+	else
+		warn("[TraceOnly] PlayerModule を無効化できませんでした:", playerModule)
+	end
+end
+
 local remotes = Net.client()
 local predictor = Predictor.new()
 local camera = CameraController.new()
@@ -75,10 +97,30 @@ RunService.Heartbeat:Connect(function(dt)
 end)
 
 -- ── 描画 (フレームレートに合わせて補間) ────────────────
+local lastDiagLog = 0
 RunService:BindToRenderStep("TraceOnlyCamera", Enum.RenderPriority.Camera.Value, function(dt)
 	local position = predictor:renderPosition(accumulator / TICK)
 	camera:update(position, predictor.state.stance, dt)
 	hud:applyLocal(predictor.state)
+
+	-- 診断用: 実際にレンダリングされているカメラの位置が、こちらが計算した
+	-- 位置と一致しているかを1.5秒おきに確認する (何かが横からカメラを
+	-- 上書きしていないかを見るため)
+	lastDiagLog += dt
+	if lastDiagLog >= 1.5 then
+		lastDiagLog = 0
+		local cam = workspace.CurrentCamera
+		print(string.format(
+			"[TraceOnly] camera actual=(%.1f,%.1f,%.1f) type=%s | predictor=(%.1f,%.1f,%.1f)",
+			cam.CFrame.Position.X,
+			cam.CFrame.Position.Y,
+			cam.CFrame.Position.Z,
+			tostring(cam.CameraType),
+			position.X,
+			position.Y,
+			position.Z
+		))
+	end
 end)
 
 -- キャラクターが存在しない構成なので、Roblox 既定の
