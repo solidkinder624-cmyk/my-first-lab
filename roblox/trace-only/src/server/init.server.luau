@@ -12,13 +12,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 Players.CharacterAutoLoads = false
 
--- StreamingEnabled は通常「プレイヤーのキャラクターの周囲」を基準に配信範囲を
--- 決める。このゲームはキャラクターを一切生成しないため、有効なままだと
--- 基準点を失って迷路のパーツが誰にも配信されず、クライアントには何も
--- 見えなくなる(真っ暗な空間だけが見える)。マップも小さいので不要なオフにする。
-print(string.format("[TraceOnly] StreamingEnabled was %s, forcing off", tostring(workspace.StreamingEnabled)))
-workspace.StreamingEnabled = false
-
 local Shared = ReplicatedStorage:WaitForChild("TraceOnly")
 local Net = require(Shared.Net)
 
@@ -70,6 +63,23 @@ RunService.Heartbeat:Connect(function(dt)
 	sim:advance(dt)
 	round:update(dt)
 end)
+
+-- StreamingEnabled は通常「プレイヤーのキャラクターの周囲」を基準に配信範囲を
+-- 決める。このゲームはキャラクターを一切生成しないため、有効なままだと
+-- 基準点を失って迷路のパーツが誰にも配信されず、クライアントには何も
+-- 見えなくなる(真っ暗な空間だけが見える)。マップも小さいので不要なのでオフにする。
+-- pcall で保護: このプロパティの読み書きが環境によって制限され例外を
+-- 投げても、既に済ませた接続やゲームループまで巻き添えで止まらないようにする。
+local streamingOk, streamingWasOrErr = pcall(function()
+	local was = workspace.StreamingEnabled
+	workspace.StreamingEnabled = false
+	return was
+end)
+if streamingOk then
+	print(string.format("[TraceOnly] StreamingEnabled was %s, forced off", tostring(streamingWasOrErr)))
+else
+	warn("[TraceOnly] StreamingEnabled の変更に失敗:", streamingWasOrErr)
+end
 
 MapBuilder.applyLighting()
 round:ensureMap()
