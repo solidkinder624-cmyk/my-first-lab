@@ -120,6 +120,38 @@ RunService:BindToRenderStep("TraceOnlyCamera", Enum.RenderPriority.Camera.Value,
 			position.Y,
 			position.Z
 		))
+
+		-- 診断用: ジオメトリが本当にクライアント側の Workspace に存在し、
+		-- 見える設定になっているかを直接確認する。
+		local maze = workspace:FindFirstChild("Maze")
+		if not maze then
+			print("[TraceOnly] Workspace に Maze フォルダが見つかりません")
+		else
+			local nearest, nearestDist = nil, math.huge
+			for _, part in maze:GetChildren() do
+				if part:IsA("BasePart") and part.Name:match("^Wall") then
+					local d = (part.Position - position).Magnitude
+					if d < nearestDist then
+						nearest, nearestDist = part, d
+					end
+				end
+			end
+			if nearest then
+				print(string.format(
+					"[TraceOnly] Maze children=%d, nearest %s dist=%.1f Transparency=%.2f Size=(%.1f,%.1f,%.1f) Parent=%s",
+					#maze:GetChildren(),
+					nearest.Name,
+					nearestDist,
+					nearest.Transparency,
+					nearest.Size.X,
+					nearest.Size.Y,
+					nearest.Size.Z,
+					tostring(nearest.Parent and nearest.Parent.Name)
+				))
+			else
+				print(string.format("[TraceOnly] Maze children=%d だが Wall が1つも見つかりません", #maze:GetChildren()))
+			end
+		end
 	end
 end)
 
