@@ -15,7 +15,7 @@ local MapBuilder = {}
 -- 「相手が見えない」のはキャラクターモデル自体が存在しない構造上の仕組みなので、
 -- 壁や床を見やすくしても他プレイヤーの位置が漏れることはない。
 -- 床を暗いままにしておくのは、足跡(Neon)とのコントラストを保つため。
-local WALL_COLOR = Color3.fromRGB(74, 80, 100)
+local WALL_COLOR = Color3.fromRGB(185, 190, 210)
 local FLOOR_COLOR = Color3.fromRGB(14, 15, 20)
 
 local function newPart(name: string, size: Vector3, position: Vector3, color: Color3): Part
@@ -36,14 +36,17 @@ end
 -- 暗闇と霧。壁の輪郭が見える程度の環境光は残しつつ、床は暗いままにして
 -- 足跡(Neon)が唯一の目立つ光源になるようにする。
 function MapBuilder.applyLighting()
-	Lighting.Ambient = Color3.fromRGB(38, 41, 52)
-	Lighting.OutdoorAmbient = Color3.fromRGB(38, 41, 52)
-	Lighting.Brightness = 0.3
+	-- 最終的な明るさは Ambient × 表面の色 の掛け算で決まるため、両方を控えめにすると
+	-- 実質ほぼ黒(数%の明るさ)まで潰れて画面上は真っ暗に見える。Ambient 自体を
+	-- はっきり明るくすることで、掛け算後も壁がグレーとして視認できる水準を確保する。
+	Lighting.Ambient = Color3.fromRGB(150, 156, 180)
+	Lighting.OutdoorAmbient = Color3.fromRGB(150, 156, 180)
+	Lighting.Brightness = 0.5
 	Lighting.ClockTime = 0
 	Lighting.GlobalShadows = false
-	Lighting.FogColor = Color3.fromRGB(20, 21, 28)
-	Lighting.FogStart = 14
-	Lighting.FogEnd = 110 -- 遠くの痕跡は霧に沈む = 索敵に距離の概念が生まれる
+	Lighting.FogColor = Color3.fromRGB(60, 63, 78)
+	Lighting.FogStart = 20
+	Lighting.FogEnd = 160 -- 遠くの痕跡は霧に沈む = 索敵に距離の概念が生まれる
 end
 
 -- grid から迷路を生成し、Workspace の Folder を返す。
