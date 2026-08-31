@@ -106,16 +106,16 @@ function TraceRenderer:_ripple(payload, spec, color: Color3)
 	part.CastShadow = false
 	part.Material = Enum.Material.Neon
 	part.Color = color
-	part.Transparency = 0.55
-	part.Size = Vector3.new(0.15, 2, 2)
+	part.Transparency = 0.6
+	part.Size = Vector3.new(0.15, 1, 1)
 	-- Cylinder は X 軸が高さ方向なので、Z 周りに90度回して床に寝かせる
 	part.CFrame = CFrame.new(position) * CFrame.Angles(0, 0, math.rad(90))
 	part.Parent = self.folder
 
 	local light = Instance.new("PointLight")
 	light.Color = color
-	light.Brightness = 2.5
-	light.Range = math.min(60, spec.size)
+	light.Brightness = 1.5
+	light.Range = math.min(60, spec.size * 1.5)
 	light.Shadows = false
 	light.Parent = part
 
