@@ -4,7 +4,7 @@ name: Daily AI News Digest
 # run -- every decision about *what* to do lives in ai_news_agent/.
 on:
   schedule:
-    - cron: "0 23 * * *" # 08:00 JST (UTC+9) every day
+    - cron: "7 23 * * *" # ~08:07 JST (UTC+9) every day, off the :00 mark
   workflow_dispatch:
     inputs:
       date:

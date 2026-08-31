@@ -76,8 +76,12 @@ python3 -m unittest discover -s tests -v
 
 ### 毎朝8時の自動実行 (.github/workflows/daily-ai-news.yml)
 
-GitHub Actionsのscheduled workflowが Trigger 層。`cron: "0 23 * * *"`
-(UTC) = 毎朝8:00 JST に `run_daily_news_agent.py` を実行する。
+GitHub Actionsのscheduled workflowが Trigger 層。`cron: "7 23 * * *"`
+(UTC) = 毎朝8:07頃 JST に `run_daily_news_agent.py` を実行する。分をわざと
+`:00`からずらしているのは、GitHubのscheduled workflowは毎時00分に世界中の
+リポジトリが集中して混雑しやすく、実行が大幅に遅延・スキップされることが
+あるため(実測: `0 23 * * *`のままだと、予定時刻から50分以上経っても
+`schedule`イベントの実行が1件も記録されないことがあった)。
 
 - **状態の永続化**: Actionsのランナーは実行ごとに使い捨てなので、実行後に
   `state/*.json` をリポジトリへコミットして外部保存する（設計原則3をCI環境でも維持）
