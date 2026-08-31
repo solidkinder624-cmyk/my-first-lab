@@ -103,10 +103,12 @@ GitHub Actionsのscheduled workflowが Trigger 層。`cron: "7 23 * * *"`
 
 ---
 
-## ジオメトリーダッシュ風アクション "NEON RUSH" (games/geometry-dash/)
+## ジオメトリーダッシュ風アクション「ほたるメトリーダッシュ」 (games/geometry-dash/)
 
 外部ライブラリなしの HTML5 Canvas 製。`games/geometry-dash/index.html` を
-ブラウザで開くだけで遊べる（ビルド不要・ファイルを直接開いてOK）。
+ブラウザで開くだけで遊べる（ビルド不要・ファイルを直接開いてOK）。プレイヤー
+キャラクターは飼い犬「ほたる」の顔写真で、キューブ状態でもロケット
+（宇宙船）状態でも常にほたるの顔がバッジのように表示される。
 
 ```bash
 # ローカルで開く
@@ -134,6 +136,8 @@ node games/geometry-dash/verify.mjs
   `localStorage` のベスト記録で表示
 - 背景の色相はステージ進行に合わせて変化し、WebAudio で BPM142 の
   ループとSEをその場で合成している（音源ファイルなし）
+- キャラクターの顔写真 (`assets/hotaru.png`) は円形に切り抜いて
+  `index.html` に base64 で埋め込み済み。単一ファイルのまま配布・実行できる
 
 ### 「絶対にクリアできない配置」を防ぐ検証器
 
