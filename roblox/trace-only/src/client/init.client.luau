@@ -38,9 +38,8 @@ do
 		pcall(function()
 			playerModule:GetCameraModule():SetCameraMovementMode(Enum.CameraMovementMode.Classic)
 		end)
-	else
-		warn("[TraceOnly] PlayerModule を無効化できませんでした:", playerModule)
 	end
+	-- PlayerModule が存在しない構成もあるので、失敗しても何もしない (実害なし)
 end
 
 local remotes = Net.client()
@@ -97,62 +96,10 @@ RunService.Heartbeat:Connect(function(dt)
 end)
 
 -- ── 描画 (フレームレートに合わせて補間) ────────────────
-local lastDiagLog = 0
 RunService:BindToRenderStep("TraceOnlyCamera", Enum.RenderPriority.Camera.Value, function(dt)
 	local position = predictor:renderPosition(accumulator / TICK)
 	camera:update(position, predictor.state.stance, dt)
 	hud:applyLocal(predictor.state)
-
-	-- 診断用: 実際にレンダリングされているカメラの位置が、こちらが計算した
-	-- 位置と一致しているかを1.5秒おきに確認する (何かが横からカメラを
-	-- 上書きしていないかを見るため)
-	lastDiagLog += dt
-	if lastDiagLog >= 1.5 then
-		lastDiagLog = 0
-		local cam = workspace.CurrentCamera
-		print(string.format(
-			"[TraceOnly] camera actual=(%.1f,%.1f,%.1f) type=%s | predictor=(%.1f,%.1f,%.1f)",
-			cam.CFrame.Position.X,
-			cam.CFrame.Position.Y,
-			cam.CFrame.Position.Z,
-			tostring(cam.CameraType),
-			position.X,
-			position.Y,
-			position.Z
-		))
-
-		-- 診断用: ジオメトリが本当にクライアント側の Workspace に存在し、
-		-- 見える設定になっているかを直接確認する。
-		local maze = workspace:FindFirstChild("Maze")
-		if not maze then
-			print("[TraceOnly] Workspace に Maze フォルダが見つかりません")
-		else
-			local nearest, nearestDist = nil, math.huge
-			for _, part in maze:GetChildren() do
-				if part:IsA("BasePart") and part.Name:match("^Wall") then
-					local d = (part.Position - position).Magnitude
-					if d < nearestDist then
-						nearest, nearestDist = part, d
-					end
-				end
-			end
-			if nearest then
-				print(string.format(
-					"[TraceOnly] Maze children=%d, nearest %s dist=%.1f Transparency=%.2f Size=(%.1f,%.1f,%.1f) Parent=%s",
-					#maze:GetChildren(),
-					nearest.Name,
-					nearestDist,
-					nearest.Transparency,
-					nearest.Size.X,
-					nearest.Size.Y,
-					nearest.Size.Z,
-					tostring(nearest.Parent and nearest.Parent.Name)
-				))
-			else
-				print(string.format("[TraceOnly] Maze children=%d だが Wall が1つも見つかりません", #maze:GetChildren()))
-			end
-		end
-	end
 end)
 
 -- キャラクターが存在しない構成なので、Roblox 既定の
