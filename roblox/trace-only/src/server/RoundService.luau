@@ -175,6 +175,16 @@ function RoundService:startRound()
 	self.phase = "Playing"
 	self.timeLeft = Config.round.duration
 
+	local readyCount = self.registry:count(function(e)
+		return e.ready
+	end)
+	print(string.format(
+		"[TraceOnly] startRound mode=%s readyPlayers=%d rawPlayers=%d",
+		self.mode.name,
+		readyCount,
+		#Players:GetPlayers()
+	))
+
 	for _, entry in self.registry:all() do
 		entry.score = 0
 		entry.active = true
@@ -190,6 +200,7 @@ function RoundService:startRound()
 end
 
 function RoundService:endRound(reason: string)
+	print(string.format("[TraceOnly] endRound mode=%s reason=%s timeLeft=%.1f", if self.mode then self.mode.name else "-", reason, self.timeLeft))
 	self.phase = "Intermission"
 	self.timeLeft = Config.round.intermission
 	self.message = if self.mode then self.mode.finish(self:_context(), reason) else reason
@@ -232,11 +243,17 @@ function RoundService:update(dt: number)
 			self:endRound("時間切れ")
 		end
 	elseif self.timeLeft <= 0 then
-		if #Players:GetPlayers() >= Config.round.minPlayers then
+		-- クライアントの読み込みが終わって Ready を送ってきた人数で判定する。
+		-- 生の接続人数(#Players:GetPlayers())で判定すると、ロード中で
+		-- まだ何も準備できていないプレイヤーだけでラウンドが始まってしまう。
+		local readyCount = self.registry:count(function(e)
+			return e.ready
+		end)
+		if readyCount >= Config.round.minPlayers then
 			self:startRound()
 		else
 			self.timeLeft = Config.round.intermission
-			self.message = string.format("あと %d 人でラウンド開始", Config.round.minPlayers - #Players:GetPlayers())
+			self.message = string.format("あと %d 人でラウンド開始", Config.round.minPlayers - readyCount)
 		end
 	end
 
