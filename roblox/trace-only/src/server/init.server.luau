@@ -64,22 +64,12 @@ RunService.Heartbeat:Connect(function(dt)
 	round:update(dt)
 end)
 
--- StreamingEnabled は通常「プレイヤーのキャラクターの周囲」を基準に配信範囲を
--- 決める。このゲームはキャラクターを一切生成しないため、有効なままだと
--- 基準点を失って迷路のパーツが誰にも配信されず、クライアントには何も
--- 見えなくなる(真っ暗な空間だけが見える)。マップも小さいので不要なのでオフにする。
--- pcall で保護: このプロパティの読み書きが環境によって制限され例外を
--- 投げても、既に済ませた接続やゲームループまで巻き添えで止まらないようにする。
-local streamingOk, streamingWasOrErr = pcall(function()
-	local was = workspace.StreamingEnabled
-	workspace.StreamingEnabled = false
-	return was
-end)
-if streamingOk then
-	print(string.format("[TraceOnly] StreamingEnabled was %s, forced off", tostring(streamingWasOrErr)))
-else
-	warn("[TraceOnly] StreamingEnabled の変更に失敗:", streamingWasOrErr)
-end
+-- 重要: Workspace の "Streaming Enabled" (Studio: ホーム → ゲーム設定 → World)
+-- は必ずオフにしておくこと。通常は「プレイヤーのキャラクターの周囲」を基準に
+-- 配信範囲を決めるが、このゲームはキャラクターを一切生成しないため、有効な
+-- ままだと基準点を失い迷路のパーツが誰にも配信されない(実機で確認済みの不具合)。
+-- このプロパティは通常のスクリプトから書き込めない(Plugin 権限が必要)ため、
+-- Studio のゲーム設定画面から手動でオフにする必要がある。
 
 MapBuilder.applyLighting()
 round:ensureMap()
