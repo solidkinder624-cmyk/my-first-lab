@@ -35,18 +35,40 @@ end
 
 -- 暗闇と霧。壁の輪郭が見える程度の環境光は残しつつ、床は暗いままにして
 -- 足跡(Neon)が唯一の目立つ光源になるようにする。
+-- 除去するポストエフェクト類。デフォルトの Baseplate テンプレートに最初から
+-- 入っている Atmosphere/ColorCorrection 等は、Ambient や Brightness をいくら
+-- 上げてもそれとは別に画面全体を暗く/濃く見せてしまうため、確実に取り除く。
+local STRIP_CLASS_NAMES = {
+	Atmosphere = true,
+	ColorCorrectionEffect = true,
+	BloomEffect = true,
+	SunRaysEffect = true,
+	DepthOfFieldEffect = true,
+	BlurEffect = true,
+}
+
 function MapBuilder.applyLighting()
+	for _, child in Lighting:GetChildren() do
+		if STRIP_CLASS_NAMES[child.ClassName] then
+			print(string.format("[TraceOnly] removing leftover %s from Lighting", child.ClassName))
+			child:Destroy()
+		end
+	end
+
 	-- 最終的な明るさは Ambient × 表面の色 の掛け算で決まるため、両方を控えめにすると
 	-- 実質ほぼ黒(数%の明るさ)まで潰れて画面上は真っ暗に見える。Ambient 自体を
 	-- はっきり明るくすることで、掛け算後も壁がグレーとして視認できる水準を確保する。
 	Lighting.Ambient = Color3.fromRGB(150, 156, 180)
 	Lighting.OutdoorAmbient = Color3.fromRGB(150, 156, 180)
 	Lighting.Brightness = 0.5
+	Lighting.ExposureCompensation = 0
 	Lighting.ClockTime = 0
 	Lighting.GlobalShadows = false
 	Lighting.FogColor = Color3.fromRGB(60, 63, 78)
 	Lighting.FogStart = 20
 	Lighting.FogEnd = 160 -- 遠くの痕跡は霧に沈む = 索敵に距離の概念が生まれる
+
+	print(string.format("[TraceOnly] lighting applied, Technology=%s", tostring(Lighting.Technology)))
 end
 
 -- grid から迷路を生成し、Workspace の Folder を返す。
