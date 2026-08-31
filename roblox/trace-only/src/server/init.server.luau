@@ -12,6 +12,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 Players.CharacterAutoLoads = false
 
+-- StreamingEnabled は通常「プレイヤーのキャラクターの周囲」を基準に配信範囲を
+-- 決める。このゲームはキャラクターを一切生成しないため、有効なままだと
+-- 基準点を失って迷路のパーツが誰にも配信されず、クライアントには何も
+-- 見えなくなる(真っ暗な空間だけが見える)。マップも小さいので不要なオフにする。
+print(string.format("[TraceOnly] StreamingEnabled was %s, forcing off", tostring(workspace.StreamingEnabled)))
+workspace.StreamingEnabled = false
+
 local Shared = ReplicatedStorage:WaitForChild("TraceOnly")
 local Net = require(Shared.Net)
 
