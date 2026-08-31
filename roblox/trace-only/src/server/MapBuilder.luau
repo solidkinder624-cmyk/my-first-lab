@@ -67,8 +67,6 @@ function MapBuilder.applyLighting()
 	Lighting.FogColor = Color3.fromRGB(60, 63, 78)
 	Lighting.FogStart = 20
 	Lighting.FogEnd = 160 -- 遠くの痕跡は霧に沈む = 索敵に距離の概念が生まれる
-
-	print(string.format("[TraceOnly] lighting applied, Technology=%s", tostring(Lighting.Technology)))
 end
 
 -- grid から迷路を生成し、Workspace の Folder を返す。

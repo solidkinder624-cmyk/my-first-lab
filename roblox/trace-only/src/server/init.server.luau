@@ -27,9 +27,9 @@ local traces = TraceService.new(registry, remotes)
 local sim = SimulationService.new(registry, remotes, traces)
 local round = RoundService.new(registry, remotes, sim, traces)
 
-MapBuilder.applyLighting()
-round:ensureMap()
-
+-- イベント接続とゲームループの起動を先に済ませる。マップ生成や照明設定
+-- (下の applyLighting/ensureMap) で万一エラーが起きても、プレイヤーの
+-- 接続やハートビートまで巻き添えで止まらないようにするため。
 Players.PlayerAdded:Connect(function(player)
 	registry:add(player)
 end)
@@ -63,3 +63,6 @@ RunService.Heartbeat:Connect(function(dt)
 	sim:advance(dt)
 	round:update(dt)
 end)
+
+MapBuilder.applyLighting()
+round:ensureMap()
