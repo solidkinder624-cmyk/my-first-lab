@@ -1,0 +1,23 @@
+{
+  "name": "DominoCrash",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "DominoCrash": {
+        "$path": "src/shared"
+      }
+    },
+    "ServerScriptService": {
+      "DominoCrashServer": {
+        "$path": "src/server"
+      }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "DominoCrashClient": {
+          "$path": "src/client"
+        }
+      }
+    }
+  }
+}
