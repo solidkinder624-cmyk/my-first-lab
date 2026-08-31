@@ -1,0 +1,23 @@
+{
+  "name": "TraceOnly",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "TraceOnly": {
+        "$path": "src/shared"
+      }
+    },
+    "ServerScriptService": {
+      "TraceOnlyServer": {
+        "$path": "src/server"
+      }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "TraceOnlyClient": {
+          "$path": "src/client"
+        }
+      }
+    }
+  }
+}

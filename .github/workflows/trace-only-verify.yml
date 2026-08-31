@@ -1,0 +1,37 @@
+name: Trace Only verify
+
+# Roblox Studio を開かずに、ゲームロジックの純関数部分 (Config / Grid / Motion) を
+# Luau CLI で実行して検証する。迷路の連結性・壁抜け・しゃがみの無音性・
+# 入力の正規化など 31 項目 (roblox/trace-only/verify.luau)。
+on:
+  push:
+    paths:
+      - "roblox/trace-only/**"
+      - ".github/workflows/trace-only-verify.yml"
+  pull_request:
+    paths:
+      - "roblox/trace-only/**"
+      - ".github/workflows/trace-only-verify.yml"
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Luau CLI
+        run: |
+          curl -sSL -o luau.zip https://github.com/luau-lang/luau/releases/latest/download/luau-ubuntu.zip
+          unzip -q luau.zip -d "$RUNNER_TEMP/luau"
+          chmod +x "$RUNNER_TEMP/luau/luau" "$RUNNER_TEMP/luau/luau-compile"
+          echo "$RUNNER_TEMP/luau" >> "$GITHUB_PATH"
+
+      - name: Syntax check every Luau source
+        run: |
+          set -e
+          find roblox/trace-only -name "*.luau" -print0 \
+            | xargs -0 -n1 luau-compile --binary > /dev/null
+
+      - name: Run logic verifier
+        run: luau roblox/trace-only/verify.luau

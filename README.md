@@ -159,3 +159,40 @@ GRID=6 SHIP=8 BEAM=1500 node games/geometry-dash/verify.mjs   # 入力を20Hz刻
 - 当たり判定は本家同様に甘め: ブロックの側面は上下6px を除いた矩形、
   トゲは見た目の三角形より一回り小さい矩形で判定する
 - 物理は固定タイムステップ 1/120 秒で回し、描画フレームレートに依存しない
+
+---
+
+## 痕跡だけの迷路 "Trace Only" (roblox/trace-only/)
+
+Roblox のマルチプレイ。プレイヤーの姿は描画されず、床に残る**足跡**と
+ジャンプ・着地の**振動波紋**だけを頼りに相手の位置を推測する。
+3Dモデル・テクスチャ・音源アセットを一切使わず、Part と手続き生成の迷路だけで成立する。
+
+```bash
+rokit install                                          # rojo/stylua/selene を導入
+rojo serve roblox/trace-only/default.project.json      # Studio の Rojo プラグインから Connect
+luau roblox/trace-only/verify.luau                     # Studio 無しでロジックを検証 (31項目)
+```
+
+- **しゃがみ**は足跡が出ないが速度は半分以下、**ダッシュ**は速いが痕跡が濃く遠くまで届く、
+  というリスク/リターンが中心のルール
+- モードは「かくれんぼ / 宝探し / 鬼ごっこ(感染式)」を自動で切り替え
+
+### 「透明にする」ではなく「そもそも送らない」
+
+Roblox は Workspace の中身を全クライアントへレプリケートするので、キャラクターを
+透明にしただけでは改造クライアントから座標が読める。そこで
+`Players.CharacterAutoLoads = false` にしてキャラクターモデルを作らず、位置はサーバの
+メモリ上のデータとしてだけ持ち、外へ出すのは痕跡パケット (種類と座標のみ・誰のものかは
+送らない) だけにしている。可聴半径の外へは送信すらしないため、情報の非対称性が
+ネットワーク層で保証される。
+
+### Studio を開かずに回るテスト
+
+ロジックの中核 (`Config` / `Grid` / `Motion`) は Roblox API 非依存の純関数として書いてあり、
+サーバ・クライアント予測・検証器の三者がまったく同じコードを実行する。`verify.luau` は
+迷路が必ず連結であること、速度400 studs/s でも壁をすり抜けないこと、しゃがみが本当に
+無音であること、巨大な `dt` を送っても1tick分しか進めないことなどを検査し、
+`.github/workflows/trace-only-verify.yml` が push ごとに実行する。
+
+詳細は `roblox/trace-only/README.md`。
