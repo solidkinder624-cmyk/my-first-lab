@@ -150,6 +150,14 @@ function RoundService:newMap()
 	self.grid = Grid.generate(Config.mazeCells.w, Config.mazeCells.h, self.seed, Config.braid, Config.tileSize)
 	MapBuilder.build(self.grid)
 	self.sim:setGrid(self.grid)
+	print(string.format(
+		"[TraceOnly] maze built: %dx%d tiles = %.0fx%.0f studs, seed=%d",
+		self.grid.w,
+		self.grid.h,
+		self.grid.w * self.grid.tileSize,
+		self.grid.h * self.grid.tileSize,
+		self.seed
+	))
 end
 
 -- 起動直後や待機中でも歩き回れるように、最低1つは迷路を用意しておく

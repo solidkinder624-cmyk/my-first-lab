@@ -138,6 +138,7 @@ function SimulationService:placeAt(entry, x: number, z: number)
 	entry.inputs = {}
 	entry.lastInput = Motion.emptyInput()
 	self.remotes.Reconcile:FireClient(entry.player, Motion.snapshot(entry.state))
+	print(string.format("[TraceOnly] spawn %s at (%.1f, %.1f)", entry.player.Name, x, z))
 end
 
 return SimulationService

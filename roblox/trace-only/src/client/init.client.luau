@@ -28,12 +28,22 @@ local renderer = TraceRenderer.new()
 local hud = Hud.new()
 
 local accumulator = 0
+local loggedFirstReconcile = false
 
 -- ── サーバからの受信 ────────────────────────────────────
 remotes.Round.OnClientEvent:Connect(function(payload)
 	if payload.event == "Map" then
 		-- 迷路そのものは秘密ではない。seed だけ受け取って同じものを再生成する。
-		predictor:setGrid(Grid.generate(payload.cellsW, payload.cellsH, payload.seed, payload.braid, Config.tileSize))
+		local grid = Grid.generate(payload.cellsW, payload.cellsH, payload.seed, payload.braid, Config.tileSize)
+		predictor:setGrid(grid)
+		print(string.format(
+			"[TraceOnly] client grid: %dx%d tiles = %.0fx%.0f studs, seed=%d",
+			grid.w,
+			grid.h,
+			grid.w * grid.tileSize,
+			grid.h * grid.tileSize,
+			payload.seed
+		))
 	elseif payload.event == "State" then
 		hud:applyState(payload)
 	end
@@ -41,6 +51,10 @@ end)
 
 remotes.Reconcile.OnClientEvent:Connect(function(snapshot)
 	predictor:reconcile(snapshot, TICK)
+	if not loggedFirstReconcile then
+		loggedFirstReconcile = true
+		print(string.format("[TraceOnly] first reconcile at (%.1f, %.1f, %.1f)", snapshot.x, snapshot.y, snapshot.z))
+	end
 end)
 
 remotes.Trace.OnClientEvent:Connect(function(payload)
