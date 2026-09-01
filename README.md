@@ -268,6 +268,10 @@ xdg-open games/graze-and-grace/index.html    # macOS なら open
 node games/graze-and-grace/verify.mjs
 ```
 
+`.github/workflows/graze-and-grace-verify.yml` が `games/graze-and-grace/` 配下への
+push・PRのたびに上記 `verify.mjs`（65項目）を自動実行する。npmパッケージは一切
+使わないので、セットアップは `actions/setup-node` だけで済む。
+
 ### 操作
 
 | 入力 | 動作 |
