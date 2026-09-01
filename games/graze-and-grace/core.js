@@ -177,6 +177,40 @@
     return Object.assign({}, bullet, { visible: true, launched: true, x, y });
   }
 
+  // --- Phase 2: 勇者側のシールドシステム（企画書 3.1) ---
+  //
+  // ゲージがMAXになると無敵シールド(イージス)を任意発動できる。
+  // 発動回数は「1プレイにつき5回まで」。状態はイミュータブルに扱う
+  // (関数は新しい状態を返すだけで、渡された state を書き換えない)。
+
+  function createShieldState(opts) {
+    const o = Object.assign({ maxUses: 5 }, opts || {});
+    return { charge: 0, maxUses: o.maxUses, usesLeft: o.maxUses, invincibleUntil: 0 };
+  }
+
+  function chargeShield(state, amount) {
+    if (amount <= 0) return state;
+    return Object.assign({}, state, { charge: Math.min(1, state.charge + amount) });
+  }
+
+  function canActivateShield(state) {
+    return state.charge >= 1 && state.usesLeft > 0;
+  }
+
+  // 発動条件を満たさない場合は state をそのまま返す(呼び出し側で判定不要)
+  function activateShield(state, nowMs, durationMs) {
+    if (!canActivateShield(state)) return state;
+    return Object.assign({}, state, {
+      charge: 0,
+      usesLeft: state.usesLeft - 1,
+      invincibleUntil: nowMs + durationMs,
+    });
+  }
+
+  function isShieldActive(state, nowMs) {
+    return nowMs < state.invincibleUntil;
+  }
+
   const api = {
     dist,
     normalize,
@@ -185,6 +219,11 @@
     estimateRegularity,
     buildBulletWall,
     advanceBullet,
+    createShieldState,
+    chargeShield,
+    canActivateShield,
+    activateShield,
+    isShieldActive,
   };
 
   if (typeof module !== "undefined" && module.exports) {

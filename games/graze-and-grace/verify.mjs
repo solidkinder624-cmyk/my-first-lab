@@ -132,6 +132,50 @@ function approxEqual(a, b, eps = 1e-6) {
   check("出現時刻より前は visible=false", tooEarly.visible === false);
 }
 
+// 7. シールド: ゲージがMAXになるまでは発動できない
+{
+  let state = core.createShieldState({ maxUses: 5 });
+  check("生成直後は発動不可", core.canActivateShield(state) === false);
+  state = core.chargeShield(state, 0.5);
+  check("半分チャージでは発動不可", core.canActivateShield(state) === false);
+  state = core.chargeShield(state, 0.5);
+  check("チャージがMAX(1.0)になると発動可能", core.canActivateShield(state) === true);
+  check("チャージは1.0を超えない", state.charge <= 1);
+}
+
+// 8. シールド: 発動すると無敵時間に入り、ゲージが消費され、残り回数が減る
+{
+  let state = core.createShieldState({ maxUses: 5 });
+  state = core.chargeShield(state, 1);
+  const activated = core.activateShield(state, 1000, 1500);
+  check("発動後は残り回数が1減る", activated.usesLeft === 4);
+  check("発動後はゲージが0に戻る", activated.charge === 0);
+  check("発動直後は無敵状態", core.isShieldActive(activated, 1000) === true);
+  check("無敵時間中は無敵状態が続く", core.isShieldActive(activated, 2000) === true);
+  check("無敵時間を過ぎると無敵ではない", core.isShieldActive(activated, 2600) === false);
+}
+
+// 9. シールド: 発動条件を満たさない場合は何も変えずに返す（例: 未チャージで発動しようとする）
+{
+  let state = core.createShieldState({ maxUses: 5 });
+  const attempted = core.activateShield(state, 1000, 1500);
+  check("未チャージでの発動は state を変えない", attempted === state);
+}
+
+// 10. シールド: 5回使い切ると、たとえチャージがMAXでも発動できない
+{
+  let state = core.createShieldState({ maxUses: 5 });
+  for (let i = 0; i < 5; i++) {
+    state = core.chargeShield(state, 1);
+    state = core.activateShield(state, i * 10000, 1500);
+  }
+  check("5回使い切ると残り回数は0", state.usesLeft === 0);
+  state = core.chargeShield(state, 1);
+  check("残り回数0だとチャージMAXでも発動不可", core.canActivateShield(state) === false);
+  const attempted = core.activateShield(state, 99999, 1500);
+  check("残り回数0での発動試行は state を変えない", attempted === state);
+}
+
 console.log("");
 if (failures > 0) {
   console.error(`${failures} 件失敗`);

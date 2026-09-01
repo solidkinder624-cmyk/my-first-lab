@@ -73,11 +73,36 @@
     cursor: pointer;
   }
   button:hover { background: #262d54; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  #shield-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: #9aa4d6;
+  }
+  #shield-gauge {
+    width: 180px;
+    height: 12px;
+    border: 1px solid #3a4380;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #131a30;
+  }
+  #shield-gauge-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #4fd1ff, #9fe8ff);
+    transition: width 0.08s linear;
+  }
+  #shield-gauge-fill.ready {
+    background: linear-gradient(90deg, #ffd24f, #fff29f);
+  }
 </style>
 </head>
 <body>
 <div id="root">
-  <h1>GRAZE &amp; GRACE ― Phase 1: スワイプ弾幕壁 プロトタイプ</h1>
+  <h1>GRAZE &amp; GRACE ― Phase 1+2: スワイプ弾幕壁 ＆ 回避シールド プロトタイプ</h1>
   <div id="stage-wrap">
     <canvas id="stage" width="720" height="480"></canvas>
   </div>
@@ -89,16 +114,23 @@
     <span>規則性(直近の壁): <b id="stat-regularity">1.00</b></span>
     <button id="reset-btn">リセット</button>
   </div>
+  <div id="shield-row">
+    <span>シールド:</span>
+    <div id="shield-gauge"><div id="shield-gauge-fill"></div></div>
+    <span>残り <b id="stat-shield-uses">5</b>/5</span>
+    <button id="shield-btn" disabled>発動 (Space)</button>
+  </div>
   <p id="help">
     画面上でスワイプすると、その軌跡に沿って一定間隔の弾が並び（＝弾幕の壁）、
     少し予告してからスワイプと直交する向き（画面中央側）へ一斉に飛び出します。<br>
     <kbd>WASD</kbd> / <kbd>矢印キー</kbd> でヒーロー（水色の点）を動かし、壁の隙間（安置）を通り抜けられるか試してください。
-    水色の輪はカスリ判定の範囲です。
+    水色の輪はカスリ判定の範囲です。カスリを重ねるとシールドゲージが溜まり、MAXで
+    <kbd>Space</kbd> を押すと一定時間の無敵「イージス」を発動できます（1プレイ5回まで）。
   </p>
 </div>
 
 <!--
-  Phase 1 の核となるロジック（DOM非依存）。verify.mjs から Node でも直接テストする。
+  Phase 1/2 の核となるロジック（DOM非依存）。verify.mjs から Node でも直接テストする。
   ※当初 React での実装を想定していたが、このプロジェクトのビルド無し方針
   （games/geometry-dash と同じ「外部ライブラリなし・ファイルを直接開くだけ」）に合わせ、
   Canvas + Vanilla JS で実装した。core.js 自体はフレームワーク非依存の純関数なので、
@@ -108,7 +140,15 @@
 <script>
 (function () {
   "use strict";
-  const { buildBulletWall, advanceBullet } = window.GrazeCore;
+  const {
+    buildBulletWall,
+    advanceBullet,
+    createShieldState,
+    chargeShield,
+    canActivateShield,
+    activateShield,
+    isShieldActive,
+  } = window.GrazeCore;
 
   const WIDTH = 720;
   const HEIGHT = 480;
@@ -116,6 +156,9 @@
   const HERO_SPEED = 260; // px/s
   const GRAZE_RADIUS = 26; // ヒーローの当たり判定より広い「カスリ」判定
   const MIN_SAMPLE_DIST = 6; // スワイプ点を間引く最小距離(px)
+  const SHIELD_MAX_USES = 5; // 企画書 3.1: シールド発動上限は1プレイにつき5回まで
+  const SHIELD_CHARGE_PER_GRAZE = 0.14; // カスリ約7回でゲージがMAXになる
+  const SHIELD_INVINCIBLE_MS = 1500;
 
   const canvas = document.getElementById("stage");
   const ctx = canvas.getContext("2d");
@@ -125,6 +168,9 @@
   const statGraze = document.getElementById("stat-graze");
   const statHits = document.getElementById("stat-hits");
   const statRegularity = document.getElementById("stat-regularity");
+  const statShieldUses = document.getElementById("stat-shield-uses");
+  const shieldGaugeFill = document.getElementById("shield-gauge-fill");
+  const shieldBtn = document.getElementById("shield-btn");
 
   let walls = []; // {createdAt, bullets, pushDir, regularity}
   let drawingPoints = null; // 現在ドロー中のスワイプ点列
@@ -133,6 +179,7 @@
   let grazedIds = new Set();
   let hitFlash = 0;
   let lastTs = null;
+  let shield = createShieldState({ maxUses: SHIELD_MAX_USES });
 
   let stats = { wallCount: 0, bulletCount: 0, grazeCount: 0, hits: 0, regularity: 1 };
 
@@ -146,6 +193,12 @@
     statGraze.textContent = stats.grazeCount;
     statHits.textContent = stats.hits;
     statRegularity.textContent = stats.regularity.toFixed(2);
+
+    statShieldUses.textContent = shield.usesLeft;
+    shieldGaugeFill.style.width = `${Math.round(shield.charge * 100)}%`;
+    const ready = canActivateShield(shield);
+    shieldGaugeFill.classList.toggle("ready", ready);
+    shieldBtn.disabled = !ready;
   }
 
   function resetGame() {
@@ -153,10 +206,18 @@
     hero = { x: WIDTH / 2, y: HEIGHT - 60 };
     grazedIds = new Set();
     hitFlash = 0;
+    shield = createShieldState({ maxUses: SHIELD_MAX_USES });
     stats = { wallCount: 0, bulletCount: 0, grazeCount: 0, hits: 0, regularity: 1 };
     renderHud();
   }
   document.getElementById("reset-btn").addEventListener("click", resetGame);
+
+  function tryActivateShield() {
+    if (!canActivateShield(shield)) return;
+    shield = activateShield(shield, performance.now(), SHIELD_INVINCIBLE_MS);
+    renderHud();
+  }
+  shieldBtn.addEventListener("click", tryActivateShield);
 
   // --- スワイプ入力: pointerdown/move/up で弾幕の壁を生成する ---
   function toCanvasPoint(evt) {
@@ -202,8 +263,14 @@
   canvas.addEventListener("pointerup", finishSwipe);
   canvas.addEventListener("pointercancel", finishSwipe);
 
-  // --- キーボード: ヒーロー(勇者側テスト用)の移動 ---
-  window.addEventListener("keydown", (e) => { keys[e.key.toLowerCase()] = true; });
+  // --- キーボード: ヒーロー(勇者側テスト用)の移動 ＋ シールド発動 ---
+  window.addEventListener("keydown", (e) => {
+    keys[e.key.toLowerCase()] = true;
+    if (e.key === " " || e.code === "Space") {
+      e.preventDefault();
+      tryActivateShield();
+    }
+  });
   window.addEventListener("keyup", (e) => { keys[e.key.toLowerCase()] = false; });
 
   // --- 描画 ---
@@ -240,6 +307,8 @@
       });
     });
 
+    const invincible = isShieldActive(shield, performance.now());
+
     ctx.beginPath();
     ctx.fillStyle = hitFlash > 0 ? `rgba(255,255,255,${0.5 + hitFlash * 0.5})` : "#7ee0ff";
     ctx.arc(hero.x, hero.y, HERO_RADIUS, 0, Math.PI * 2);
@@ -249,6 +318,18 @@
     ctx.lineWidth = 1;
     ctx.arc(hero.x, hero.y, GRAZE_RADIUS, 0, Math.PI * 2);
     ctx.stroke();
+
+    if (invincible) {
+      // イージス(無敵シールド)発動中: 金色のオーラで視覚的に明示する
+      ctx.beginPath();
+      ctx.strokeStyle = "#ffd24f";
+      ctx.lineWidth = 3;
+      ctx.shadowColor = "#ffd24f";
+      ctx.shadowBlur = 12;
+      ctx.arc(hero.x, hero.y, HERO_RADIUS + 6, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
   }
 
   // --- ゲームループ ---
@@ -273,6 +354,7 @@
     let bulletCount = 0;
     let grazeThisFrame = 0;
     let hitThisFrame = false;
+    const invincible = isShieldActive(shield, ts);
 
     walls = walls
       .map((wall) => {
@@ -291,7 +373,7 @@
         const d = dist(hero, b);
         const key = wall.createdAt + ":" + b.id;
         if (d < HERO_RADIUS + b.radius) {
-          hitThisFrame = true;
+          if (!invincible) hitThisFrame = true;
         } else if (b.launched && d < GRAZE_RADIUS && !grazedIds.has(key)) {
           grazedIds.add(key);
           grazeThisFrame++;
@@ -301,6 +383,10 @@
 
     if (hitThisFrame) hitFlash = 1;
     hitFlash = Math.max(0, hitFlash - dt * 2);
+
+    if (grazeThisFrame > 0) {
+      shield = chargeShield(shield, grazeThisFrame * SHIELD_CHARGE_PER_GRAZE);
+    }
 
     stats.wallCount = walls.length;
     stats.bulletCount = bulletCount;

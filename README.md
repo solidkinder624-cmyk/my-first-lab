@@ -253,17 +253,18 @@ Roblox API 非依存の純関数で、`verify.luau` が
 
 ---
 
-## GRAZE & GRACE ― スワイプ弾幕壁 プロトタイプ (games/graze-and-grace/)
+## GRAZE & GRACE ― スワイプ弾幕壁 ＆ 回避シールド プロトタイプ (games/graze-and-grace/)
 
-企画書 (`games/graze-and-grace/GAME_DESIGN.md`) の Phase 1「弾幕エンジンの基礎構築」に
-対応するプロトタイプ。外部ライブラリなしの HTML5 Canvas 製。
-`games/graze-and-grace/index.html` をブラウザで開くだけで遊べる（ビルド不要）。
+企画書 (`games/graze-and-grace/GAME_DESIGN.md`) の Phase 1「弾幕エンジンの基礎構築」と
+Phase 2「回避側（勇者）のプロトタイプ実装」に対応するプロトタイプ。外部ライブラリなしの
+HTML5 Canvas 製。`games/graze-and-grace/index.html` をブラウザで開くだけで遊べる
+（ビルド不要）。
 
 ```bash
 # ローカルで開く
 xdg-open games/graze-and-grace/index.html    # macOS なら open
 
-# 弾幕の壁 生成ロジックだけを Node で検証する
+# 弾幕の壁 生成ロジック / シールドシステムだけを Node で検証する
 node games/graze-and-grace/verify.mjs
 ```
 
@@ -273,16 +274,22 @@ node games/graze-and-grace/verify.mjs
 |---|---|
 | 画面上をスワイプ（マウスドラッグ／タッチ） | その軌跡に沿って一定間隔の弾を並べ、「弾幕の壁」を生成する |
 | `WASD` / 矢印キー | ヒーロー（勇者役のテスト用の水色の点）を動かし、壁の隙間（安置）を回避する |
+| `Space` / 発動ボタン | シールドゲージがMAXのとき、無敵「イージス」を発動する（1プレイ5回まで） |
 
 スワイプで壁を描くと、少し予告（テレグラフ）してから、スワイプの向きに対して
 画面中央側へ直交する方向へ壁全体が一斉に飛び出す。HUD にはカスリ数・被弾数・
 直近の壁の「規則性」（企画書 2.1 の Grace/規則性の最小限の下敷き）を表示する。
+弾をカスるたびにシールドゲージが少しずつ溜まり、MAXになると `Space` で一定時間
+（1.5秒）の無敵状態を発動できる。発動回数は企画書 3.1 のとおり1プレイにつき5回まで
+で、使い切るとゲージがMAXでも発動できなくなる。
 
 ### 実装メモ
 
 - ロジック（`core.js`）は DOM に一切触らない純関数群で、`resamplePathEven`
   （スワイプの点列を弧長ベースで等間隔にリサンプルする）と `buildBulletWall`
-  （リサンプル結果から弾のリストと押し出し方向を作る）が中心。`index.html`
+  （リサンプル結果から弾のリストと押し出し方向を作る）、および
+  `createShieldState` / `chargeShield` / `activateShield` / `isShieldActive`
+  （5回制限シールドの状態遷移、すべてイミュータブル）が中心。`index.html`
   からは `<script>` タグで、`verify.mjs` からは Node の `require` で
   同じファイルをそのまま読み込む。
 - 押し出し方向はスワイプ全体の向きに直交する2方向のうち、画面中央に近づく側を
@@ -290,6 +297,9 @@ node games/graze-and-grace/verify.mjs
 - 各弾は「スワイプした順に少し遅れて出現」→「一定時間の予告で静止」→
   「直進」の3段階を持ち、`advanceBullet` が経過時間から現在の状態を都度計算する
   （フレームレート非依存）。
+- シールドは `usesLeft` と `charge`（0〜1）を持つだけの小さな状態機械。
+  `activateShield` は発動条件（ゲージMAX かつ残り回数1以上）を満たさない場合、
+  渡された state をそのまま返す（呼び出し側で事前チェック不要）。
 - 当初 React での実装を想定していたが、このサンドボックス環境では CDN
   (unpkg/cdnjs/jsdelivr) への外向き通信がネットワークポリシーでブロックされており
   動作確認ができなかったため、本リポジトリの既存ゲーム（geometry-dash等）と同じ
