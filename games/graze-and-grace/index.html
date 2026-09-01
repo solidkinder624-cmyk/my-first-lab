@@ -98,11 +98,28 @@
   #shield-gauge-fill.ready {
     background: linear-gradient(90deg, #ffd24f, #fff29f);
   }
+  #score-panel {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 14px;
+    font-size: 12.5px;
+    color: #9aa4d6;
+    border-top: 1px solid #232a4d;
+    padding-top: 8px;
+    width: 100%;
+    max-width: 560px;
+  }
+  #score-panel b { color: #e8ecff; }
+  #score-panel .overall {
+    font-size: 15px;
+    color: #ffd24f;
+  }
 </style>
 </head>
 <body>
 <div id="root">
-  <h1>GRAZE &amp; GRACE ― Phase 1+2: スワイプ弾幕壁 ＆ 回避シールド プロトタイプ</h1>
+  <h1>GRAZE &amp; GRACE ― Phase 1+2+3: 弾幕壁 ＆ 回避シールド ＆ 芸術点 プロトタイプ</h1>
   <div id="stage-wrap">
     <canvas id="stage" width="720" height="480"></canvas>
   </div>
@@ -120,23 +137,34 @@
     <span>残り <b id="stat-shield-uses">5</b>/5</span>
     <button id="shield-btn" disabled>発動 (Space)</button>
   </div>
+  <div id="score-panel">
+    <span class="overall">芸術点: <b id="score-overall">0.0</b></span>
+    <span>規則性: <b id="score-regularity">0.0</b></span>
+    <span>密度: <b id="score-density">0.0</b></span>
+    <span>継続性: <b id="score-continuity">0.0</b></span>
+    <span>美しさ(画面の使い方): <b id="score-coverage">0.0</b></span>
+    <span>カスリ得点: <b id="score-graze">0</b> (最大連続 <b id="score-max-streak">0</b>)</span>
+  </div>
   <p id="help">
     画面上でスワイプすると、その軌跡に沿って一定間隔の弾が並び（＝弾幕の壁）、
     少し予告してからスワイプと直交する向き（画面中央側）へ一斉に飛び出します。<br>
     <kbd>WASD</kbd> / <kbd>矢印キー</kbd> でヒーロー（水色の点）を動かし、壁の隙間（安置）を通り抜けられるか試してください。
     水色の輪はカスリ判定の範囲です。カスリを重ねるとシールドゲージが溜まり、MAXで
-    <kbd>Space</kbd> を押すと一定時間の無敵「イージス」を発動できます（1プレイ5回まで）。
+    <kbd>Space</kbd> を押すと一定時間の無敵「イージス」を発動できます（1プレイ5回まで）。<br>
+    芸術点は企画書2.1の Grace（規則性・密度・継続性・美しさ）＋ Graze（連続カスリ）から
+    算出します（シンクロ率は音楽同期を実装するPhase4で追加予定）。
   </p>
 </div>
 
 <!--
-  Phase 1/2 の核となるロジック（DOM非依存）。verify.mjs から Node でも直接テストする。
+  Phase 1/2/3 の核となるロジック（DOM非依存）。verify.mjs から Node でも直接テストする。
   ※当初 React での実装を想定していたが、このプロジェクトのビルド無し方針
   （games/geometry-dash と同じ「外部ライブラリなし・ファイルを直接開くだけ」）に合わせ、
-  Canvas + Vanilla JS で実装した。core.js 自体はフレームワーク非依存の純関数なので、
-  後日 React/Unity/Godot 等に載せ替える場合もロジックはそのまま再利用できる。
+  Canvas + Vanilla JS で実装した。core.js / score.js 自体はフレームワーク非依存の純関数
+  なので、後日 React/Unity/Godot 等に載せ替える場合もロジックはそのまま再利用できる。
 -->
 <script src="./core.js"></script>
+<script src="./score.js"></script>
 <script>
 (function () {
   "use strict";
@@ -149,6 +177,7 @@
     activateShield,
     isShieldActive,
   } = window.GrazeCore;
+  const { computeArtScore } = window.GrazeScore;
 
   const WIDTH = 720;
   const HEIGHT = 480;
@@ -172,6 +201,14 @@
   const shieldGaugeFill = document.getElementById("shield-gauge-fill");
   const shieldBtn = document.getElementById("shield-btn");
 
+  const scoreOverall = document.getElementById("score-overall");
+  const scoreRegularity = document.getElementById("score-regularity");
+  const scoreDensity = document.getElementById("score-density");
+  const scoreContinuity = document.getElementById("score-continuity");
+  const scoreCoverage = document.getElementById("score-coverage");
+  const scoreGraze = document.getElementById("score-graze");
+  const scoreMaxStreak = document.getElementById("score-max-streak");
+
   let walls = []; // {createdAt, bullets, pushDir, regularity}
   let drawingPoints = null; // 現在ドロー中のスワイプ点列
   let hero = { x: WIDTH / 2, y: HEIGHT - 60 };
@@ -180,6 +217,10 @@
   let hitFlash = 0;
   let lastTs = null;
   let shield = createShieldState({ maxUses: SHIELD_MAX_USES });
+
+  // Phase 3: 芸術点(Grace & Graze)の計算材料。ゲームプレイ用の walls とは別に、
+  // 画面外に消えた壁もスコア計算のためにセッション終了まで残す。
+  let scoreLog = { wallRecords: [], events: [] };
 
   let stats = { wallCount: 0, bulletCount: 0, grazeCount: 0, hits: 0, regularity: 1 };
 
@@ -199,6 +240,15 @@
     const ready = canActivateShield(shield);
     shieldGaugeFill.classList.toggle("ready", ready);
     shieldBtn.disabled = !ready;
+
+    const art = computeArtScore(scoreLog, { canvasWidth: WIDTH, canvasHeight: HEIGHT });
+    scoreOverall.textContent = art.overall.toFixed(1);
+    scoreRegularity.textContent = (art.grace.regularity * 100).toFixed(1);
+    scoreDensity.textContent = (art.grace.density * 100).toFixed(1);
+    scoreContinuity.textContent = (art.grace.continuity * 100).toFixed(1);
+    scoreCoverage.textContent = (art.grace.coverage * 100).toFixed(1);
+    scoreGraze.textContent = art.graze.score;
+    scoreMaxStreak.textContent = art.graze.maxStreak;
   }
 
   function resetGame() {
@@ -207,6 +257,7 @@
     grazedIds = new Set();
     hitFlash = 0;
     shield = createShieldState({ maxUses: SHIELD_MAX_USES });
+    scoreLog = { wallRecords: [], events: [] };
     stats = { wallCount: 0, bulletCount: 0, grazeCount: 0, hits: 0, regularity: 1 };
     renderHud();
   }
@@ -247,7 +298,7 @@
     drawingPoints = null;
     if (!points || points.length < 2) return;
 
-    const { bullets, regularity } = buildBulletWall(points, {
+    const { bullets, regularity, resampled } = buildBulletWall(points, {
       spacing: 22,
       bulletSpeed: 210,
       telegraphMs: 500,
@@ -257,7 +308,15 @@
     });
     if (bullets.length === 0) return;
 
-    walls.push({ createdAt: performance.now(), bullets, regularity });
+    const createdAt = performance.now();
+    walls.push({ createdAt, bullets, regularity });
+    // Phase 3 のスコア計算用に、画面外に消えても残る履歴として記録する
+    scoreLog.wallRecords.push({
+      createdAt,
+      regularity,
+      bulletCount: bullets.length,
+      points: resampled,
+    });
   }
 
   canvas.addEventListener("pointerup", finishSwipe);
@@ -387,6 +446,10 @@
     if (grazeThisFrame > 0) {
       shield = chargeShield(shield, grazeThisFrame * SHIELD_CHARGE_PER_GRAZE);
     }
+
+    // Phase 3: 芸術点計算用に、起きた順でカスリ/被弾イベントを記録する
+    for (let i = 0; i < grazeThisFrame; i++) scoreLog.events.push({ type: "graze" });
+    if (hitThisFrame) scoreLog.events.push({ type: "hit" });
 
     stats.wallCount = walls.length;
     stats.bulletCount = bulletCount;

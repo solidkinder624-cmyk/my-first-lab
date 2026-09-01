@@ -12,6 +12,7 @@ import { dirname, join } from "node:path";
 const here = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 const core = require(join(here, "core.js"));
+const score = require(join(here, "score.js"));
 
 let failures = 0;
 function check(name, cond) {
@@ -174,6 +175,107 @@ function approxEqual(a, b, eps = 1e-6) {
   check("残り回数0だとチャージMAXでも発動不可", core.canActivateShield(state) === false);
   const attempted = core.activateShield(state, 99999, 1500);
   check("残り回数0での発動試行は state を変えない", attempted === state);
+}
+
+// 11. 規則性スコア: 弾数の多い壁ほど平均への寄与が大きい(加重平均)
+{
+  const wallRecords = [
+    { regularity: 1.0, bulletCount: 1 },
+    { regularity: 0.0, bulletCount: 9 },
+  ];
+  const s = score.computeRegularityScore(wallRecords);
+  check(`加重平均が弾数側(0.0)に寄る (got ${s.toFixed(2)})`, approxEqual(s, 0.1, 0.01));
+  check("壁が無ければ規則性1(減点なし)", score.computeRegularityScore([]) === 1);
+}
+
+// 12. 密度スコア: 目標占有率に達すると頭打ちで1.0を超えない
+{
+  const canvasW = 720, canvasH = 480;
+  const tiny = score.computeDensityScore(
+    [{ bulletCount: 1 }],
+    canvasW,
+    canvasH,
+    { bulletRadius: 6, targetOccupancy: 0.05 }
+  );
+  const huge = score.computeDensityScore(
+    [{ bulletCount: 100000 }],
+    canvasW,
+    canvasH,
+    { bulletRadius: 6, targetOccupancy: 0.05 }
+  );
+  check("弾が少ないと密度スコアは低い", tiny < 0.1);
+  check("弾が過剰でも密度スコアは1.0を超えない", huge === 1);
+}
+
+// 13. 継続性スコア: 間隔が目標以内なら1.0、大きく空くと下がる
+{
+  const dense = score.computeContinuityScore([0, 2000, 4000, 6000], { targetGapMs: 2500 });
+  const sparse = score.computeContinuityScore([0, 20000], { targetGapMs: 2500 });
+  check(`間隔が目標以内なら継続性1.0 (got ${dense})`, dense === 1);
+  check(`大きく間隔が空くと継続性が下がる (got ${sparse.toFixed(2)})`, sparse < 0.5);
+  check("壁が1つだけなら継続性1.0(判定材料不足として減点しない)", score.computeContinuityScore([1234]) === 1);
+  check("壁が無ければ継続性0", score.computeContinuityScore([]) === 0);
+}
+
+// 14. カバレッジ(美しさの下敷き)スコア: 画面全体を使うほど高スコア
+{
+  const canvasW = 720, canvasH = 480;
+  const wide = score.computeCoverageScore(
+    [{ points: [{ x: 0, y: 0 }, { x: 720, y: 480 }] }],
+    canvasW,
+    canvasH
+  );
+  const narrow = score.computeCoverageScore(
+    [{ points: [{ x: 350, y: 240 }, { x: 360, y: 240 }] }],
+    canvasW,
+    canvasH
+  );
+  check(`画面全体を使うとカバレッジ1.0に近い (got ${wide.toFixed(2)})`, wide > 0.9);
+  check(`狭い範囲だとカバレッジが低い (got ${narrow.toFixed(4)})`, narrow < 0.01);
+}
+
+// 15. カスリスコア: 連続カスリはストリークボーナスがつき、被弾でストリークが途切れる
+{
+  const allGraze = score.computeGrazeScore([
+    { type: "graze" }, { type: "graze" }, { type: "graze" },
+  ]);
+  check("3連続カスリの最大ストリークは3", allGraze.maxStreak === 3);
+
+  const brokenByHit = score.computeGrazeScore([
+    { type: "graze" }, { type: "graze" }, { type: "hit" }, { type: "graze" },
+  ]);
+  check("被弾でストリークがリセットされ、最大は2のまま", brokenByHit.maxStreak === 2);
+  check("カスリ総数は被弾を挟んでも3のまま数える", brokenByHit.count === 3);
+  check(
+    "同じカスリ回数でも連続していた方(ストリークボーナス)がスコアが高い",
+    allGraze.score > brokenByHit.score
+  );
+}
+
+// 16. 被弾(瞬殺)はスコアに加点されない ―
+//     企画書「絶対に避けられない壁による瞬殺は評価されない」を満たす
+{
+  const onlyHits = score.computeGrazeScore([
+    { type: "hit" }, { type: "hit" }, { type: "hit" },
+  ]);
+  check("カスリ無しで被弾だけならスコアは0", onlyHits.score === 0);
+}
+
+// 17. computeArtScore: 全体を組み合わせても発散しない(0〜100程度の範囲に収まる)
+{
+  const result = score.computeArtScore(
+    {
+      wallRecords: [
+        { createdAt: 0, regularity: 0.9, bulletCount: 15, points: [{ x: 100, y: 50 }, { x: 600, y: 400 }] },
+        { createdAt: 2000, regularity: 0.95, bulletCount: 18, points: [{ x: 50, y: 300 }, { x: 500, y: 100 }] },
+      ],
+      events: [{ type: "graze" }, { type: "graze" }, { type: "graze" }],
+    },
+    { canvasWidth: 720, canvasHeight: 480 }
+  );
+  check("Grace合計が0〜100の範囲", result.grace.total >= 0 && result.grace.total <= 100);
+  check("overallが0〜100の範囲", result.overall >= 0 && result.overall <= 100);
+  check("グレイズ内訳が含まれる", result.graze.count === 3);
 }
 
 console.log("");
