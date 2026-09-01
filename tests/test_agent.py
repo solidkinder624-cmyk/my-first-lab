@@ -4,8 +4,37 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from unittest import mock
 
-from ai_news_agent import guardrails, orchestrator, pipeline, sinks, state
+from ai_news_agent import guardrails, orchestrator, pipeline, sinks, sources, state
 from ai_news_agent.errors import ValidationError
+
+
+class SourcesTests(unittest.TestCase):
+    def test_parse_rss_extracts_title_url_and_published_at(self):
+        xml_text = """<?xml version="1.0"?>
+        <rss version="2.0"><channel>
+          <item>
+            <title>Anthropic ships new agent tooling</title>
+            <link>https://example.com/a</link>
+            <pubDate>Tue, 01 Sep 2026 08:07:00 GMT</pubDate>
+          </item>
+          <item>
+            <title>No pubDate article</title>
+            <link>https://example.com/b</link>
+          </item>
+        </channel></rss>"""
+        articles = sources._parse_rss(xml_text)
+        self.assertEqual(len(articles), 2)
+        self.assertEqual(articles[0]["title"], "Anthropic ships new agent tooling")
+        self.assertEqual(articles[0]["url"], "https://example.com/a")
+        self.assertEqual(articles[0]["published_at"], "2026-09-01T08:07:00+00:00")
+        self.assertIn("published_at", articles[1])  # falls back to "now" rather than dropping
+
+    def test_parse_rss_skips_items_missing_title_or_link(self):
+        xml_text = """<rss version="2.0"><channel>
+          <item><title>Has no link</title></item>
+          <item><link>https://example.com/only-link</link></item>
+        </channel></rss>"""
+        self.assertEqual(sources._parse_rss(xml_text), [])
 
 
 class PipelineTests(unittest.TestCase):
