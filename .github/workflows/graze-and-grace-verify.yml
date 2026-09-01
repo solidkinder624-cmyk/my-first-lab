@@ -4,6 +4,10 @@ name: GRAZE & GRACE verify
 # 拍クロックの純粋ロジック(core.js・score.js・rhythm.js)を Node で検証する
 # (games/graze-and-grace/verify.mjs、65項目)。DOM/AudioContext に依存しない
 # 部分だけを対象にしているので、ブラウザなしで壊れをすぐ検知できる。
+#
+# react-app/ (Vite+React版) はこの同じロジックを `graze-and-grace-core`
+# というローカルパッケージとして import しているので、lint と本番ビルドが
+# 通ることも合わせて確認する。
 on:
   push:
     paths:
@@ -27,3 +31,19 @@ jobs:
 
       - name: Run logic verifier
         run: node games/graze-and-grace/verify.mjs
+
+  react-app:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: games/graze-and-grace/react-app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build

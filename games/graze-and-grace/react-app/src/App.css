@@ -1,0 +1,146 @@
+#game-root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px;
+  gap: 10px;
+}
+
+h1 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: 0.04em;
+  color: #b9c2ff;
+  text-align: center;
+}
+
+#stage-wrap {
+  position: relative;
+  border: 1px solid #2b3357;
+  border-radius: 8px;
+  box-shadow: 0 0 40px rgba(90, 110, 255, 0.15);
+  touch-action: none;
+}
+
+#stage {
+  display: block;
+  background: radial-gradient(ellipse at 50% 30%, #131a30 0%, #090b13 70%);
+  cursor: crosshair;
+}
+
+#hud {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 18px;
+  font-size: 13px;
+  color: #9aa4d6;
+}
+#hud b { color: #e8ecff; }
+
+#help {
+  max-width: 720px;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: #8891bd;
+  text-align: center;
+}
+#help kbd {
+  background: #1c2242;
+  border: 1px solid #3a4380;
+  border-radius: 4px;
+  padding: 1px 6px;
+  color: #d6dcff;
+  font-size: 11px;
+}
+
+button {
+  background: #1c2242;
+  border: 1px solid #3a4380;
+  color: #d6dcff;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+button:hover { background: #262d54; }
+button:disabled { opacity: 0.4; cursor: default; }
+
+#shield-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #9aa4d6;
+}
+#shield-gauge {
+  width: 180px;
+  height: 12px;
+  border: 1px solid #3a4380;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #131a30;
+}
+#shield-gauge-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #4fd1ff, #9fe8ff);
+  transition: width 0.08s linear;
+}
+#shield-gauge-fill.ready {
+  background: linear-gradient(90deg, #ffd24f, #fff29f);
+}
+
+#score-panel {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
+  font-size: 12.5px;
+  color: #9aa4d6;
+  border-top: 1px solid #232a4d;
+  padding-top: 8px;
+  width: 100%;
+  max-width: 560px;
+}
+#score-panel b { color: #e8ecff; }
+#score-panel .overall {
+  font-size: 15px;
+  color: #ffd24f;
+}
+
+#music-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #9aa4d6;
+}
+#music-row input[type="number"] {
+  width: 56px;
+  background: #131a30;
+  border: 1px solid #3a4380;
+  border-radius: 4px;
+  color: #e8ecff;
+  padding: 3px 6px;
+  font-size: 12.5px;
+}
+
+#beat-pulse {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #3a4380;
+  box-shadow: 0 0 0 rgba(126, 224, 255, 0);
+  transition: background 0.05s linear, box-shadow 0.05s linear, transform 0.05s linear;
+}
+#beat-pulse.on-beat {
+  background: #7ee0ff;
+  box-shadow: 0 0 14px 4px rgba(126, 224, 255, 0.7);
+  transform: scale(1.3);
+}
+#beat-pulse.downbeat.on-beat {
+  background: #ffd24f;
+  box-shadow: 0 0 16px 5px rgba(255, 210, 79, 0.8);
+}

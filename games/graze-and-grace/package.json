@@ -1,0 +1,13 @@
+{
+  "name": "graze-and-grace-core",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GRAZE & GRACE shared game logic (core.js/score.js/rhythm.js) - DOM/framework-free, used by both the no-build Canvas prototype (index.html) and the React app (react-app/).",
+  "type": "commonjs",
+  "main": "core.js",
+  "exports": {
+    "./core.js": "./core.js",
+    "./score.js": "./score.js",
+    "./rhythm.js": "./rhythm.js"
+  }
+}

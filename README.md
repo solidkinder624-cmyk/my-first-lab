@@ -257,11 +257,14 @@ Roblox API 非依存の純関数で、`verify.luau` が
 
 企画書 (`games/graze-and-grace/GAME_DESIGN.md`) の Phase 1〜4（弾幕エンジンの基礎構築 /
 回避側の実装 / Grace & Graze スコア計算 / 音楽との同期システム）に対応するプロトタイプ。
-外部ライブラリなしの HTML5 Canvas 製。`games/graze-and-grace/index.html` をブラウザで
-開くだけで遊べる（ビルド不要）。
+実装は2種類あり、ゲームロジック本体は共有している:
+
+- **Canvas版**（外部ライブラリなし・ビルド不要）: `games/graze-and-grace/index.html`
+  をブラウザで直接開くだけで遊べる。
+- **React版**（`games/graze-and-grace/react-app/`）: Vite + React 19 製。手順は後述。
 
 ```bash
-# ローカルで開く
+# Canvas版をローカルで開く
 xdg-open games/graze-and-grace/index.html    # macOS なら open
 
 # 弾幕の壁 生成ロジック / シールドシステム / スコア計算 / 拍クロックだけを Node で検証する
@@ -269,8 +272,8 @@ node games/graze-and-grace/verify.mjs
 ```
 
 `.github/workflows/graze-and-grace-verify.yml` が `games/graze-and-grace/` 配下への
-push・PRのたびに上記 `verify.mjs`（65項目）を自動実行する。npmパッケージは一切
-使わないので、セットアップは `actions/setup-node` だけで済む。
+push・PRのたびに上記 `verify.mjs`（65項目）と、React版の lint・ビルドを自動実行する。
+Canvas版はnpmパッケージを一切使わないので、そちらのジョブは `actions/setup-node` だけで済む。
 
 ### 操作
 
@@ -324,9 +327,32 @@ push・PRのたびに上記 `verify.mjs`（65項目）を自動実行する。np
   記録する。BGM自体は音源ファイルを使わず、拍ごとに WebAudio の
   `OscillatorNode`＋`GainNode` で短いクリック音をその場で合成している
   （小節の頭だけ音を高くして拍の区別をつけている）。
-- 当初 React での実装を想定していたが、このサンドボックス環境では CDN
-  (unpkg/cdnjs/jsdelivr) への外向き通信がネットワークポリシーでブロックされており
-  動作確認ができなかったため、本リポジトリの既存ゲーム（geometry-dash等）と同じ
-  「外部ライブラリなし・ファイルを直接開くだけ」方針で実装した。`core.js` /
-  `score.js` / `rhythm.js` はフレームワーク非依存の純関数なので、React/Unity/Godot
-  等へ載せ替える場合もロジックはそのまま流用できる。
+- `core.js` / `score.js` / `rhythm.js` はフレームワーク非依存の純関数なので、
+  Canvas版プロトタイプと下記の React 版とで同じファイルをそのまま共有している。
+
+### React版 (games/graze-and-grace/react-app/)
+
+当初の依頼どおり React でも同じゲームをビルドしたもの。Vite + React 19 製。
+ゲームロジック本体はCanvas版と共有しており、二重管理はしていない
+（`games/graze-and-grace/package.json` で `core.js`/`score.js`/`rhythm.js` を
+`graze-and-grace-core` というローカルパッケージとして公開し、React側は
+`npm install ../`（`file:..` 依存）で取り込んでいる。詳細は
+`react-app/README.md` を参照）。
+
+```bash
+cd games/graze-and-grace/react-app
+npm install
+npm run dev       # 開発サーバー (http://localhost:5173 等、HMR付き)
+npm run build     # 本番ビルド
+npm run lint      # oxlint
+npm test          # 共有ロジックのNode検証 (= ../verify.mjs と同じ)
+```
+
+`.github/workflows/graze-and-grace-verify.yml` の `react-app` ジョブが
+`npm ci && npm run lint && npm run build` を push・PRのたびに自動実行する。
+
+補足: 最初にCDN経由(`<script src="https://unpkg.com/...">`)でのReact読み込みを
+試したが、このサンドボックス環境では unpkg/cdnjs/jsdelivr への外向き通信が
+ネットワークポリシーでブロックされていて検証できなかった。npmレジストリへは
+到達できることを確認できたため、CDNではなく `npm install` で React 一式を
+取得しVite でビルドする、通常の(＝「当初依頼された」)構成に変更している。
