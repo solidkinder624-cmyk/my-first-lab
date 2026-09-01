@@ -250,3 +250,49 @@ Roblox API 非依存の純関数で、`verify.luau` が
 など117項目を検査する。`.github/workflows/domino-crash-verify.yml` が push ごとに実行する。
 
 詳細は `roblox/domino-crash/README.md`。
+
+---
+
+## GRAZE & GRACE ― スワイプ弾幕壁 プロトタイプ (games/graze-and-grace/)
+
+企画書 (`games/graze-and-grace/GAME_DESIGN.md`) の Phase 1「弾幕エンジンの基礎構築」に
+対応するプロトタイプ。外部ライブラリなしの HTML5 Canvas 製。
+`games/graze-and-grace/index.html` をブラウザで開くだけで遊べる（ビルド不要）。
+
+```bash
+# ローカルで開く
+xdg-open games/graze-and-grace/index.html    # macOS なら open
+
+# 弾幕の壁 生成ロジックだけを Node で検証する
+node games/graze-and-grace/verify.mjs
+```
+
+### 操作
+
+| 入力 | 動作 |
+|---|---|
+| 画面上をスワイプ（マウスドラッグ／タッチ） | その軌跡に沿って一定間隔の弾を並べ、「弾幕の壁」を生成する |
+| `WASD` / 矢印キー | ヒーロー（勇者役のテスト用の水色の点）を動かし、壁の隙間（安置）を回避する |
+
+スワイプで壁を描くと、少し予告（テレグラフ）してから、スワイプの向きに対して
+画面中央側へ直交する方向へ壁全体が一斉に飛び出す。HUD にはカスリ数・被弾数・
+直近の壁の「規則性」（企画書 2.1 の Grace/規則性の最小限の下敷き）を表示する。
+
+### 実装メモ
+
+- ロジック（`core.js`）は DOM に一切触らない純関数群で、`resamplePathEven`
+  （スワイプの点列を弧長ベースで等間隔にリサンプルする）と `buildBulletWall`
+  （リサンプル結果から弾のリストと押し出し方向を作る）が中心。`index.html`
+  からは `<script>` タグで、`verify.mjs` からは Node の `require` で
+  同じファイルをそのまま読み込む。
+- 押し出し方向はスワイプ全体の向きに直交する2方向のうち、画面中央に近づく側を
+  自動選択する（壁が常に勇者側へ迫ってくるように）。
+- 各弾は「スワイプした順に少し遅れて出現」→「一定時間の予告で静止」→
+  「直進」の3段階を持ち、`advanceBullet` が経過時間から現在の状態を都度計算する
+  （フレームレート非依存）。
+- 当初 React での実装を想定していたが、このサンドボックス環境では CDN
+  (unpkg/cdnjs/jsdelivr) への外向き通信がネットワークポリシーでブロックされており
+  動作確認ができなかったため、本リポジトリの既存ゲーム（geometry-dash等）と同じ
+  「外部ライブラリなし・ファイルを直接開くだけ」方針で実装した。`core.js` は
+  フレームワーク非依存の純関数なので、React/Unity/Godot 等へ載せ替える場合も
+  ロジックはそのまま流用できる。
