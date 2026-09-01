@@ -1,9 +1,10 @@
-// GRAZE & GRACE - Phase 3: Grace & Graze 評価システム（芸術点）
+// GRAZE & GRACE - Phase 3/4: Grace & Graze 評価システム（芸術点）
 //
-// 企画書 2.1 のうち、音楽同期を前提としない4項目を実装する:
-//   規則性 / 美しさ(画面の使い方) / 密度 / 継続性
-// 「シンクロ率」は BGM の展開情報が要る (企画書2.1・Phase4) ため、ここでは扱わない。
-// Grace の重み付けは Phase4 でシンクロ率を追加する際に見直す前提の均等割り。
+// 企画書 2.1 の Grace 5項目のうち、まず音楽同期を前提としない4項目を実装した
+// (規則性 / 美しさ(画面の使い方) / 密度 / 継続性)。Phase4 で rhythm.js による
+// 拍クロックが手に入ったので、「シンクロ率」（壁を描き終えたタイミングがどれだけ
+// 拍にピッタリ合っていたか、rhythm.js の syncAccuracy を壁ごとにサンプリングした
+// もの）を5項目目として追加する。Grace の重みは5項目均等割り。
 //
 // Graze（カスリ）側は「連続カスリ回数」を評価する。被弾(hit)はスコアに加点せず
 // 連続カスリのストリークをリセットするだけなので、企画書の
@@ -82,6 +83,15 @@
     return Math.min(1, (w * h) / (canvasWidth * canvasHeight));
   }
 
+  // 5. シンクロ率(Phase4): 壁を描き終えた瞬間の rhythm.js syncAccuracy(0〜1)を
+  //    サンプルした配列の平均。データが無ければ(音楽未再生でプレイした場合)
+  //    他の項目同様「未達成として0点」にする。
+  function computeSyncScore(syncSamples) {
+    if (!syncSamples || syncSamples.length === 0) return 0;
+    const sum = syncSamples.reduce((a, b) => a + b, 0);
+    return Math.min(1, sum / syncSamples.length);
+  }
+
   // Graze: イベント列(出現順)から連続カスリ数と得点を計算する。
   // events: [{type: "graze"} | {type: "hit"}, ...] (時系列順)
   function computeGrazeScore(events, opts) {
@@ -110,6 +120,7 @@
    * @param {{createdAt:number, regularity:number, bulletCount:number, points:{x,y}[]}[]} session.wallRecords
    *   スワイプのたびに記録する壁の履歴(ゲームプレイ用の walls とは別に、消えても残す)
    * @param {{type:"graze"|"hit"}[]} session.events 時系列順のカスリ/被弾イベント
+   * @param {number[]} session.syncSamples 壁を描き終えた瞬間ごとの拍シンクロ精度(0〜1)
    * @param {object} opts 画面サイズ等
    * @returns {{grace: object, graze: object, overall: number}}
    */
@@ -123,9 +134,11 @@
       density: computeDensityScore(wallRecords, o.canvasWidth, o.canvasHeight),
       continuity: computeContinuityScore(wallTimestamps),
       coverage: computeCoverageScore(wallRecords, o.canvasWidth, o.canvasHeight),
+      sync: computeSyncScore((session && session.syncSamples) || []),
     };
     const graceTotal =
-      ((grace.regularity + grace.density + grace.continuity + grace.coverage) / 4) * 100;
+      ((grace.regularity + grace.density + grace.continuity + grace.coverage + grace.sync) / 5) *
+      100;
 
     const grazeResult = computeGrazeScore((session && session.events) || []);
     const overall = (graceTotal + Math.min(100, grazeResult.score)) / 2;
@@ -142,6 +155,7 @@
     computeDensityScore,
     computeContinuityScore,
     computeCoverageScore,
+    computeSyncScore,
     computeGrazeScore,
     computeArtScore,
   };

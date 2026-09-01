@@ -13,6 +13,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 const core = require(join(here, "core.js"));
 const score = require(join(here, "score.js"));
+const rhythm = require(join(here, "rhythm.js"));
 
 let failures = 0;
 function check(name, cond) {
@@ -276,6 +277,76 @@ function approxEqual(a, b, eps = 1e-6) {
   check("Grace合計が0〜100の範囲", result.grace.total >= 0 && result.grace.total <= 100);
   check("overallが0〜100の範囲", result.overall >= 0 && result.overall <= 100);
   check("グレイズ内訳が含まれる", result.graze.count === 3);
+}
+
+// 18. rhythm: BPM120なら1拍=0.5秒。拍0から0.5秒後は拍1、位相は0に戻る
+{
+  const clock = rhythm.createClock({ bpm: 120, beatsPerBar: 4, startTime: 0 });
+  check("BPM120の1拍は0.5秒", approxEqual(rhythm.beatDuration(clock), 0.5));
+  check("0.5秒後は拍インデックス1", rhythm.currentBeatIndex(clock, 0.5) === 1);
+  check("拍のちょうど頭では位相0", approxEqual(rhythm.beatPhase(clock, 0.5), 0, 1e-9));
+  check("拍の中間(0.25秒進んだ位置)では位相0.5", approxEqual(rhythm.beatPhase(clock, 0.75), 0.5, 1e-9));
+}
+
+// 19. rhythm: 小節の頭(ダウンビート)は beatsPerBar 拍ごと
+{
+  const clock = rhythm.createClock({ bpm: 120, beatsPerBar: 4, startTime: 0 });
+  check("拍0は小節の頭", rhythm.isDownbeat(clock, 0));
+  check("拍4(次の小節の頭)も小節の頭", rhythm.isDownbeat(clock, 4 * 0.5));
+  check("拍1は小節の頭ではない", !rhythm.isDownbeat(clock, 1 * 0.5));
+  check("拍2も小節の頭ではない", !rhythm.isDownbeat(clock, 2 * 0.5));
+}
+
+// 20. rhythm: nextBeatTime は常に渡した時刻より後になる
+{
+  const clock = rhythm.createClock({ bpm: 140, beatsPerBar: 4, startTime: 0 });
+  const bd = rhythm.beatDuration(clock);
+  for (const t of [0, bd - 0.001, bd, bd + 0.001, bd * 3.7]) {
+    const next = rhythm.nextBeatTime(clock, t);
+    check(`nextBeatTime(${t.toFixed(3)}) > ${t.toFixed(3)}`, next > t);
+    check(`nextBeatTime(${t.toFixed(3)}) は拍の境界上`, approxEqual(rhythm.beatPhase(clock, next), 0, 1e-6) || approxEqual(rhythm.beatPhase(clock, next), 1, 1e-6));
+  }
+}
+
+// 21. rhythm: syncAccuracy は拍のジャストタイミングで1、オフビート(位相0.5)で0
+{
+  const clock = rhythm.createClock({ bpm: 100, beatsPerBar: 4, startTime: 0 });
+  const bd = rhythm.beatDuration(clock);
+  check("拍ジャストでシンクロ度1.0", approxEqual(rhythm.syncAccuracy(clock, bd * 2), 1, 1e-9));
+  check("完全オフビートでシンクロ度0.0", approxEqual(rhythm.syncAccuracy(clock, bd * 2.5), 0, 1e-9));
+  const near = rhythm.syncAccuracy(clock, bd * 2 + 0.01);
+  check(`拍に近いほどシンクロ度が高い (got ${near.toFixed(3)})`, near > 0.9 && near < 1);
+}
+
+// 22. rhythm: nearestBeatTime は前後どちらの拍にも丸められる
+{
+  const clock = rhythm.createClock({ bpm: 120, beatsPerBar: 4, startTime: 0 });
+  const bd = rhythm.beatDuration(clock);
+  check("わずかに進んだ時刻は直前の拍に丸められる", approxEqual(rhythm.nearestBeatTime(clock, bd * 2 + 0.01), bd * 2));
+  check("わずかに手前の時刻は直後の拍に丸められる", approxEqual(rhythm.nearestBeatTime(clock, bd * 3 - 0.01), bd * 3));
+}
+
+// 23. スコア: シンクロ率はサンプルの平均。データが無ければ0(他項目と同様に未達成扱い)
+{
+  check("サンプル無しならシンクロスコア0", score.computeSyncScore([]) === 0);
+  check("サンプル無しならシンクロスコア0(undefined)", score.computeSyncScore(undefined) === 0);
+  const s = score.computeSyncScore([1, 0.5, 0]);
+  check(`平均値になる (got ${s.toFixed(3)})`, approxEqual(s, 0.5));
+}
+
+// 24. computeArtScore: シンクロ率が Grace の内訳に含まれ、サンプルが良いほどGraceが上がる
+{
+  const base = {
+    wallRecords: [{ createdAt: 0, regularity: 0.8, bulletCount: 10, points: [{ x: 0, y: 0 }, { x: 100, y: 100 }] }],
+    events: [],
+  };
+  const withoutSync = score.computeArtScore(base, { canvasWidth: 720, canvasHeight: 480 });
+  const withGoodSync = score.computeArtScore(
+    Object.assign({}, base, { syncSamples: [1, 1, 1] }),
+    { canvasWidth: 720, canvasHeight: 480 }
+  );
+  check("グレース内訳にsyncが含まれる", typeof withoutSync.grace.sync === "number");
+  check("シンクロ良好だとGrace合計が上がる", withGoodSync.grace.total > withoutSync.grace.total);
 }
 
 console.log("");

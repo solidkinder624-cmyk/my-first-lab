@@ -115,11 +115,44 @@
     font-size: 15px;
     color: #ffd24f;
   }
+  #music-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: #9aa4d6;
+  }
+  #music-row input[type="number"] {
+    width: 56px;
+    background: #131a30;
+    border: 1px solid #3a4380;
+    border-radius: 4px;
+    color: #e8ecff;
+    padding: 3px 6px;
+    font-size: 12.5px;
+  }
+  #beat-pulse {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #3a4380;
+    box-shadow: 0 0 0 rgba(126, 224, 255, 0);
+    transition: background 0.05s linear, box-shadow 0.05s linear, transform 0.05s linear;
+  }
+  #beat-pulse.on-beat {
+    background: #7ee0ff;
+    box-shadow: 0 0 14px 4px rgba(126, 224, 255, 0.7);
+    transform: scale(1.3);
+  }
+  #beat-pulse.downbeat.on-beat {
+    background: #ffd24f;
+    box-shadow: 0 0 16px 5px rgba(255, 210, 79, 0.8);
+  }
 </style>
 </head>
 <body>
 <div id="root">
-  <h1>GRAZE &amp; GRACE ― Phase 1+2+3: 弾幕壁 ＆ 回避シールド ＆ 芸術点 プロトタイプ</h1>
+  <h1>GRAZE &amp; GRACE ― Phase 1+2+3+4: 弾幕壁 ＆ シールド ＆ 芸術点 ＆ 音楽同期 プロトタイプ</h1>
   <div id="stage-wrap">
     <canvas id="stage" width="720" height="480"></canvas>
   </div>
@@ -137,12 +170,20 @@
     <span>残り <b id="stat-shield-uses">5</b>/5</span>
     <button id="shield-btn" disabled>発動 (Space)</button>
   </div>
+  <div id="music-row">
+    <span>BPM:</span>
+    <input type="number" id="bpm-input" value="128" min="60" max="220" step="1" />
+    <button id="music-btn">♪ BGM開始 (M)</button>
+    <span>拍:</span>
+    <div id="beat-pulse"></div>
+  </div>
   <div id="score-panel">
     <span class="overall">芸術点: <b id="score-overall">0.0</b></span>
     <span>規則性: <b id="score-regularity">0.0</b></span>
     <span>密度: <b id="score-density">0.0</b></span>
     <span>継続性: <b id="score-continuity">0.0</b></span>
     <span>美しさ(画面の使い方): <b id="score-coverage">0.0</b></span>
+    <span>シンクロ率: <b id="score-sync">0.0</b></span>
     <span>カスリ得点: <b id="score-graze">0</b> (最大連続 <b id="score-max-streak">0</b>)</span>
   </div>
   <p id="help">
@@ -151,20 +192,25 @@
     <kbd>WASD</kbd> / <kbd>矢印キー</kbd> でヒーロー（水色の点）を動かし、壁の隙間（安置）を通り抜けられるか試してください。
     水色の輪はカスリ判定の範囲です。カスリを重ねるとシールドゲージが溜まり、MAXで
     <kbd>Space</kbd> を押すと一定時間の無敵「イージス」を発動できます（1プレイ5回まで）。<br>
-    芸術点は企画書2.1の Grace（規則性・密度・継続性・美しさ）＋ Graze（連続カスリ）から
-    算出します（シンクロ率は音楽同期を実装するPhase4で追加予定）。
+    <kbd>M</kbd> / ♪ボタンでBGM（WebAudioで合成したメトロノーム）を開始すると、
+    スワイプを終えた瞬間から一番近い次の拍まで自動的に予告時間が調整され、弾幕の壁は
+    必ず拍にピッタリ合わせて発射されます。壁を描き終えたタイミングが拍に近いほど
+    「シンクロ率」が上がります（芸術点は Grace＝規則性・密度・継続性・美しさ・シンクロ率、
+    ＋ Graze＝連続カスリ、から算出）。
   </p>
 </div>
 
 <!--
-  Phase 1/2/3 の核となるロジック（DOM非依存）。verify.mjs から Node でも直接テストする。
+  Phase 1/2/3/4 の核となるロジック（DOM非依存）。verify.mjs から Node でも直接テストする。
   ※当初 React での実装を想定していたが、このプロジェクトのビルド無し方針
   （games/geometry-dash と同じ「外部ライブラリなし・ファイルを直接開くだけ」）に合わせ、
-  Canvas + Vanilla JS で実装した。core.js / score.js 自体はフレームワーク非依存の純関数
-  なので、後日 React/Unity/Godot 等に載せ替える場合もロジックはそのまま再利用できる。
+  Canvas + Vanilla JS で実装した。core.js / score.js / rhythm.js 自体はフレームワーク
+  非依存の純関数なので、後日 React/Unity/Godot 等に載せ替える場合もロジックはそのまま
+  再利用できる。
 -->
 <script src="./core.js"></script>
 <script src="./score.js"></script>
+<script src="./rhythm.js"></script>
 <script>
 (function () {
   "use strict";
@@ -178,6 +224,14 @@
     isShieldActive,
   } = window.GrazeCore;
   const { computeArtScore } = window.GrazeScore;
+  const {
+    createClock,
+    beatDuration,
+    beatPhase,
+    isDownbeat,
+    nextBeatTime,
+    syncAccuracy,
+  } = window.GrazeRhythm;
 
   const WIDTH = 720;
   const HEIGHT = 480;
@@ -206,8 +260,13 @@
   const scoreDensity = document.getElementById("score-density");
   const scoreContinuity = document.getElementById("score-continuity");
   const scoreCoverage = document.getElementById("score-coverage");
+  const scoreSync = document.getElementById("score-sync");
   const scoreGraze = document.getElementById("score-graze");
   const scoreMaxStreak = document.getElementById("score-max-streak");
+
+  const bpmInput = document.getElementById("bpm-input");
+  const musicBtn = document.getElementById("music-btn");
+  const beatPulseEl = document.getElementById("beat-pulse");
 
   let walls = []; // {createdAt, bullets, pushDir, regularity}
   let drawingPoints = null; // 現在ドロー中のスワイプ点列
@@ -220,9 +279,26 @@
 
   // Phase 3: 芸術点(Grace & Graze)の計算材料。ゲームプレイ用の walls とは別に、
   // 画面外に消えた壁もスコア計算のためにセッション終了まで残す。
-  let scoreLog = { wallRecords: [], events: [] };
+  let scoreLog = { wallRecords: [], events: [], syncSamples: [] };
+
+  // Phase 4: 音楽同期。AudioContext.currentTime を基準にした拍クロック。
+  // rAF の ts (performance.now(), ミリ秒) とは別の時間軸なので、
+  // audioOffsetMs = 「performance.now() 換算した AudioContext の起点」を介して変換する。
+  let audioCtx = null;
+  let rhythmClock = null; // null の間は音楽未再生(固定テレグラフ時間にフォールバック)
+  let audioOffsetMs = 0;
+  let nextClickBeat = 0;
+  let schedulerTimer = null;
+  const SCHEDULE_AHEAD_SEC = 0.12;
+  const SCHEDULER_INTERVAL_MS = 25;
+  const FALLBACK_TELEGRAPH_MS = 500; // 音楽未再生時の固定予告時間(Phase1〜3と同じ)
+  const MIN_TELEGRAPH_MS = 150; // 拍がすぐ来すぎる場合に確保する最低反応時間
 
   let stats = { wallCount: 0, bulletCount: 0, grazeCount: 0, hits: 0, regularity: 1 };
+
+  function audioTimeSecFromTs(ts) {
+    return (ts - audioOffsetMs) / 1000;
+  }
 
   function dist(a, b) {
     return Math.hypot(a.x - b.x, a.y - b.y);
@@ -247,6 +323,7 @@
     scoreDensity.textContent = (art.grace.density * 100).toFixed(1);
     scoreContinuity.textContent = (art.grace.continuity * 100).toFixed(1);
     scoreCoverage.textContent = (art.grace.coverage * 100).toFixed(1);
+    scoreSync.textContent = (art.grace.sync * 100).toFixed(1);
     scoreGraze.textContent = art.graze.score;
     scoreMaxStreak.textContent = art.graze.maxStreak;
   }
@@ -257,7 +334,7 @@
     grazedIds = new Set();
     hitFlash = 0;
     shield = createShieldState({ maxUses: SHIELD_MAX_USES });
-    scoreLog = { wallRecords: [], events: [] };
+    scoreLog = { wallRecords: [], events: [], syncSamples: [] };
     stats = { wallCount: 0, bulletCount: 0, grazeCount: 0, hits: 0, regularity: 1 };
     renderHud();
   }
@@ -269,6 +346,64 @@
     renderHud();
   }
   shieldBtn.addEventListener("click", tryActivateShield);
+
+  // --- Phase 4: 音楽同期。WebAudio でメトロノーム(拍のクリック音)を合成する ---
+  function playClick(time, isDownbeatClick) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = isDownbeatClick ? 880 : 660;
+    gain.gain.setValueAtTime(0.0001, time);
+    gain.gain.exponentialRampToValueAtTime(isDownbeatClick ? 0.35 : 0.2, time + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.08);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(time);
+    osc.stop(time + 0.09);
+  }
+
+  function schedulerTick() {
+    if (!audioCtx || !rhythmClock) return;
+    const bd = beatDuration(rhythmClock);
+    while (rhythmClock.startTime + nextClickBeat * bd < audioCtx.currentTime + SCHEDULE_AHEAD_SEC) {
+      const beatTime = rhythmClock.startTime + nextClickBeat * bd;
+      const beatInBar = ((nextClickBeat % rhythmClock.beatsPerBar) + rhythmClock.beatsPerBar) % rhythmClock.beatsPerBar;
+      if (beatTime >= audioCtx.currentTime) playClick(beatTime, beatInBar === 0);
+      nextClickBeat++;
+    }
+  }
+
+  function startMusic() {
+    if (audioCtx) return;
+    const AudioCtor = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AudioCtor();
+    const bpm = Math.max(60, Math.min(220, Number(bpmInput.value) || 128));
+    const startTime = audioCtx.currentTime + 0.15;
+    rhythmClock = createClock({ bpm, beatsPerBar: 4, startTime });
+    audioOffsetMs = performance.now() - audioCtx.currentTime * 1000;
+    nextClickBeat = 0;
+    schedulerTimer = setInterval(schedulerTick, SCHEDULER_INTERVAL_MS);
+    schedulerTick();
+    musicBtn.textContent = "■ BGM停止 (M)";
+    bpmInput.disabled = true;
+  }
+
+  function stopMusic() {
+    if (!audioCtx) return;
+    clearInterval(schedulerTimer);
+    schedulerTimer = null;
+    audioCtx.close();
+    audioCtx = null;
+    rhythmClock = null;
+    musicBtn.textContent = "♪ BGM開始 (M)";
+    bpmInput.disabled = false;
+  }
+
+  function toggleMusic() {
+    if (audioCtx) stopMusic();
+    else startMusic();
+  }
+  musicBtn.addEventListener("click", toggleMusic);
 
   // --- スワイプ入力: pointerdown/move/up で弾幕の壁を生成する ---
   function toCanvasPoint(evt) {
@@ -298,17 +433,31 @@
     drawingPoints = null;
     if (!points || points.length < 2) return;
 
+    const createdAt = performance.now();
+
+    // Phase 4: 音楽が鳴っていれば、予告時間をスワイプ完了時刻から
+    // 「一番近い次の拍」までの時間に合わせる ―― 壁は常に拍ピッタリで発射される。
+    let telegraphMs = FALLBACK_TELEGRAPH_MS;
+    if (rhythmClock) {
+      const nowSec = audioTimeSecFromTs(createdAt);
+      let launchSec = nextBeatTime(rhythmClock, nowSec);
+      if ((launchSec - nowSec) * 1000 < MIN_TELEGRAPH_MS) {
+        launchSec = nextBeatTime(rhythmClock, launchSec);
+      }
+      telegraphMs = (launchSec - nowSec) * 1000;
+      scoreLog.syncSamples.push(syncAccuracy(rhythmClock, nowSec));
+    }
+
     const { bullets, regularity, resampled } = buildBulletWall(points, {
       spacing: 22,
       bulletSpeed: 210,
-      telegraphMs: 500,
+      telegraphMs,
       waveDelayMs: 14,
       bulletRadius: 6,
       center: { x: WIDTH / 2, y: HEIGHT / 2 },
     });
     if (bullets.length === 0) return;
 
-    const createdAt = performance.now();
     walls.push({ createdAt, bullets, regularity });
     // Phase 3 のスコア計算用に、画面外に消えても残る履歴として記録する
     scoreLog.wallRecords.push({
@@ -328,6 +477,9 @@
     if (e.key === " " || e.code === "Space") {
       e.preventDefault();
       tryActivateShield();
+    }
+    if (e.key.toLowerCase() === "m") {
+      toggleMusic();
     }
   });
   window.addEventListener("keyup", (e) => { keys[e.key.toLowerCase()] = false; });
@@ -391,11 +543,27 @@
     }
   }
 
+  // --- 拍のビジュアル表示 ---
+  function updateBeatPulse(ts) {
+    if (!rhythmClock) {
+      beatPulseEl.classList.remove("on-beat", "downbeat");
+      return;
+    }
+    const nowSec = audioTimeSecFromTs(ts);
+    const phase = beatPhase(rhythmClock, nowSec);
+    // 拍の頭付近(phase が 0 に近い)だけ光らせる
+    const onBeat = phase < 0.12;
+    beatPulseEl.classList.toggle("on-beat", onBeat);
+    beatPulseEl.classList.toggle("downbeat", isDownbeat(rhythmClock, nowSec, 0.12));
+  }
+
   // --- ゲームループ ---
   function tick(ts) {
     if (lastTs == null) lastTs = ts;
     const dt = Math.min((ts - lastTs) / 1000, 1 / 20);
     lastTs = ts;
+
+    updateBeatPulse(ts);
 
     let dx = 0, dy = 0;
     if (keys["arrowleft"] || keys["a"]) dx -= 1;
