@@ -1,10 +1,13 @@
 """Article collection -- a "code" step, not an "AI judgement" step
 (design principle 1: mechanical work stays in code).
 
-Real usage: point AI_NEWS_SOURCE_URL at a JSON endpoint returning a list of
-``{"title", "url", "published_at"}`` objects. With no URL configured (the
-default for this lab) a small fixed demo dataset is used instead, so the
-whole pipeline runs end to end with no external credentials.
+Real usage: point AI_NEWS_SOURCE_URL at one or more comma-separated feed
+URLs. Each is auto-detected as either an RSS 2.0 feed (most tech news
+sites, e.g. TechCrunch AI, VentureBeat AI -- no API key needed) or a JSON
+endpoint returning a list of ``{"title", "url", "published_at"}`` objects
+(for a real news API). With no URL configured (the default for this lab) a
+small fixed demo dataset is used instead, so the whole pipeline runs end to
+end with no external credentials.
 
 ``AI_NEWS_SIMULATE`` lets tests/demos exercise the guardrails without real
 network flakiness:
@@ -16,8 +19,11 @@ from __future__ import annotations
 
 import json
 import os
+import urllib.error
 import urllib.request
+import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 from .errors import AuthError, TransientError
@@ -80,18 +86,63 @@ def fetch_articles() -> list[Article]:
     if simulate == "no_articles":
         return []
 
-    source_url = os.environ.get("AI_NEWS_SOURCE_URL")
-    if not source_url:
+    source_urls = os.environ.get("AI_NEWS_SOURCE_URL")
+    if not source_urls:
         return _demo_articles()
 
+    articles: list[Article] = []
+    for url in (u.strip() for u in source_urls.split(",")):
+        if url:
+            articles.extend(_fetch_one_source(url))
+    return articles
+
+
+def _fetch_one_source(url: str) -> list[Article]:
     try:
-        with urllib.request.urlopen(source_url, timeout=10) as resp:
-            payload = json.loads(resp.read().decode("utf-8"))
+        with urllib.request.urlopen(url, timeout=10) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
     except urllib.error.URLError as exc:
-        raise TransientError(str(exc)) from exc
+        raise TransientError(f"{url}: {exc}") from exc
     except TimeoutError as exc:
-        raise TransientError(str(exc)) from exc
+        raise TransientError(f"{url}: {exc}") from exc
+
+    if raw.lstrip().startswith("<"):
+        try:
+            return _parse_rss(raw)
+        except ET.ParseError as exc:
+            raise TransientError(f"{url}: invalid RSS/XML response ({exc})") from exc
+
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise TransientError(f"{url}: unrecognized response format ({exc})") from exc
 
     if isinstance(payload, dict) and payload.get("error") == "unauthorized":
-        raise AuthError("source API rejected credentials")
+        raise AuthError(f"{url}: source API rejected credentials")
     return payload if isinstance(payload, list) else payload.get("articles", [])
+
+
+def _parse_rss(xml_text: str) -> list[Article]:
+    """Parse a standard RSS 2.0 feed's <item> entries into our article shape."""
+    root = ET.fromstring(xml_text)
+    articles: list[Article] = []
+    for item in root.iter("item"):
+        title_el = item.find("title")
+        link_el = item.find("link")
+        if title_el is None or link_el is None or not title_el.text or not link_el.text:
+            continue
+
+        published_at = datetime.now(timezone.utc).isoformat()
+        pubdate_el = item.find("pubDate")
+        if pubdate_el is not None and pubdate_el.text:
+            try:
+                published_at = parsedate_to_datetime(pubdate_el.text).astimezone(timezone.utc).isoformat()
+            except (TypeError, ValueError):
+                pass  # keep the "now" fallback rather than dropping the article
+
+        articles.append({
+            "title": title_el.text.strip(),
+            "url": link_el.text.strip(),
+            "published_at": published_at,
+        })
+    return articles

@@ -68,7 +68,13 @@ python3 -m unittest discover -s tests -v
 
 すべて環境変数で有効化。未設定なら dry-run（標準出力に表示するだけ）で動く。
 
-- `AI_NEWS_SOURCE_URL` — 記事一覧を返すJSON APIのURL（未設定時は同梱のデモ記事を使用）
+- `AI_NEWS_SOURCE_URL` — ニュース取得元。**RSSフィード**(標準ライブラリのみで解析、APIキー不要)
+  または `{"title","url","published_at"}` のリストを返すJSONエンドポイントのどちらかを
+  自動判別。カンマ区切りで複数指定すると全ソースをまとめて取得する。未設定時は同梱のデモ記事を使用。
+  例:
+  ```
+  AI_NEWS_SOURCE_URL=https://techcrunch.com/category/artificial-intelligence/feed/,https://venturebeat.com/category/ai/feed/
+  ```
 - `NOTION_TOKEN` / `NOTION_DATABASE_ID` — Notion保存を実データで行う
 - `SLACK_WEBHOOK_URL` — Slack通知を実際に送る
 - `AI_NEWS_SIMULATE` — テスト/デモ用。`network_error` / `auth_error` / `no_articles`
