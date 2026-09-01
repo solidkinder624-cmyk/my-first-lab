@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GRAZE &amp; GRACE - Phase 1 プロトタイプ（弾幕の壁）</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #0b0e17;
+    color: #e8ecff;
+    font-family: "Hiragino Sans", "Yu Gothic", sans-serif;
+    overflow: hidden;
+  }
+  #root {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px;
+    gap: 10px;
+  }
+  h1 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+    letter-spacing: 0.04em;
+    color: #b9c2ff;
+  }
+  #stage-wrap {
+    position: relative;
+    border: 1px solid #2b3357;
+    border-radius: 8px;
+    box-shadow: 0 0 40px rgba(90, 110, 255, 0.15);
+    touch-action: none;
+  }
+  canvas {
+    display: block;
+    background: radial-gradient(ellipse at 50% 30%, #131a30 0%, #090b13 70%);
+    cursor: crosshair;
+  }
+  #hud {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 18px;
+    font-size: 13px;
+    color: #9aa4d6;
+  }
+  #hud b { color: #e8ecff; }
+  #help {
+    max-width: 720px;
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: #8891bd;
+    text-align: center;
+  }
+  #help kbd {
+    background: #1c2242;
+    border: 1px solid #3a4380;
+    border-radius: 4px;
+    padding: 1px 6px;
+    color: #d6dcff;
+    font-size: 11px;
+  }
+  button {
+    background: #1c2242;
+    border: 1px solid #3a4380;
+    color: #d6dcff;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12.5px;
+    cursor: pointer;
+  }
+  button:hover { background: #262d54; }
+</style>
+</head>
+<body>
+<div id="root">
+  <h1>GRAZE &amp; GRACE ― Phase 1: スワイプ弾幕壁 プロトタイプ</h1>
+  <div id="stage-wrap">
+    <canvas id="stage" width="720" height="480"></canvas>
+  </div>
+  <div id="hud">
+    <span>壁の数: <b id="stat-walls">0</b></span>
+    <span>現在の弾数: <b id="stat-bullets">0</b></span>
+    <span>カスリ: <b id="stat-graze">0</b></span>
+    <span>被弾: <b id="stat-hits">0</b></span>
+    <span>規則性(直近の壁): <b id="stat-regularity">1.00</b></span>
+    <button id="reset-btn">リセット</button>
+  </div>
+  <p id="help">
+    画面上でスワイプすると、その軌跡に沿って一定間隔の弾が並び（＝弾幕の壁）、
+    少し予告してからスワイプと直交する向き（画面中央側）へ一斉に飛び出します。<br>
+    <kbd>WASD</kbd> / <kbd>矢印キー</kbd> でヒーロー（水色の点）を動かし、壁の隙間（安置）を通り抜けられるか試してください。
+    水色の輪はカスリ判定の範囲です。
+  </p>
+</div>
+
+<!--
+  Phase 1 の核となるロジック（DOM非依存）。verify.mjs から Node でも直接テストする。
+  ※当初 React での実装を想定していたが、このプロジェクトのビルド無し方針
+  （games/geometry-dash と同じ「外部ライブラリなし・ファイルを直接開くだけ」）に合わせ、
+  Canvas + Vanilla JS で実装した。core.js 自体はフレームワーク非依存の純関数なので、
+  後日 React/Unity/Godot 等に載せ替える場合もロジックはそのまま再利用できる。
+-->
+<script src="./core.js"></script>
+<script>
+(function () {
+  "use strict";
+  const { buildBulletWall, advanceBullet } = window.GrazeCore;
+
+  const WIDTH = 720;
+  const HEIGHT = 480;
+  const HERO_RADIUS = 9;
+  const HERO_SPEED = 260; // px/s
+  const GRAZE_RADIUS = 26; // ヒーローの当たり判定より広い「カスリ」判定
+  const MIN_SAMPLE_DIST = 6; // スワイプ点を間引く最小距離(px)
+
+  const canvas = document.getElementById("stage");
+  const ctx = canvas.getContext("2d");
+
+  const statWalls = document.getElementById("stat-walls");
+  const statBullets = document.getElementById("stat-bullets");
+  const statGraze = document.getElementById("stat-graze");
+  const statHits = document.getElementById("stat-hits");
+  const statRegularity = document.getElementById("stat-regularity");
+
+  let walls = []; // {createdAt, bullets, pushDir, regularity}
+  let drawingPoints = null; // 現在ドロー中のスワイプ点列
+  let hero = { x: WIDTH / 2, y: HEIGHT - 60 };
+  const keys = {};
+  let grazedIds = new Set();
+  let hitFlash = 0;
+  let lastTs = null;
+
+  let stats = { wallCount: 0, bulletCount: 0, grazeCount: 0, hits: 0, regularity: 1 };
+
+  function dist(a, b) {
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  function renderHud() {
+    statWalls.textContent = stats.wallCount;
+    statBullets.textContent = stats.bulletCount;
+    statGraze.textContent = stats.grazeCount;
+    statHits.textContent = stats.hits;
+    statRegularity.textContent = stats.regularity.toFixed(2);
+  }
+
+  function resetGame() {
+    walls = [];
+    hero = { x: WIDTH / 2, y: HEIGHT - 60 };
+    grazedIds = new Set();
+    hitFlash = 0;
+    stats = { wallCount: 0, bulletCount: 0, grazeCount: 0, hits: 0, regularity: 1 };
+    renderHud();
+  }
+  document.getElementById("reset-btn").addEventListener("click", resetGame);
+
+  // --- スワイプ入力: pointerdown/move/up で弾幕の壁を生成する ---
+  function toCanvasPoint(evt) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: ((evt.clientX - rect.left) / rect.width) * WIDTH,
+      y: ((evt.clientY - rect.top) / rect.height) * HEIGHT,
+    };
+  }
+
+  canvas.addEventListener("pointerdown", (evt) => {
+    canvas.setPointerCapture(evt.pointerId);
+    drawingPoints = [toCanvasPoint(evt)];
+  });
+
+  canvas.addEventListener("pointermove", (evt) => {
+    if (!drawingPoints) return;
+    const p = toCanvasPoint(evt);
+    const last = drawingPoints[drawingPoints.length - 1];
+    if (dist(last, p) >= MIN_SAMPLE_DIST) {
+      drawingPoints.push(p);
+    }
+  });
+
+  function finishSwipe() {
+    const points = drawingPoints;
+    drawingPoints = null;
+    if (!points || points.length < 2) return;
+
+    const { bullets, regularity } = buildBulletWall(points, {
+      spacing: 22,
+      bulletSpeed: 210,
+      telegraphMs: 500,
+      waveDelayMs: 14,
+      bulletRadius: 6,
+      center: { x: WIDTH / 2, y: HEIGHT / 2 },
+    });
+    if (bullets.length === 0) return;
+
+    walls.push({ createdAt: performance.now(), bullets, regularity });
+  }
+
+  canvas.addEventListener("pointerup", finishSwipe);
+  canvas.addEventListener("pointercancel", finishSwipe);
+
+  // --- キーボード: ヒーロー(勇者側テスト用)の移動 ---
+  window.addEventListener("keydown", (e) => { keys[e.key.toLowerCase()] = true; });
+  window.addEventListener("keyup", (e) => { keys[e.key.toLowerCase()] = false; });
+
+  // --- 描画 ---
+  function draw() {
+    ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+    if (drawingPoints && drawingPoints.length > 1) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(150, 180, 255, 0.55)";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 6]);
+      ctx.beginPath();
+      ctx.moveTo(drawingPoints[0].x, drawingPoints[0].y);
+      for (let i = 1; i < drawingPoints.length; i++) ctx.lineTo(drawingPoints[i].x, drawingPoints[i].y);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    walls.forEach((wall) => {
+      wall.bullets.forEach((b) => {
+        if (!b.visible) return;
+        ctx.beginPath();
+        if (!b.launched) {
+          ctx.fillStyle = "rgba(255, 210, 120, 0.55)";
+          ctx.arc(b.x, b.y, b.radius * 0.7, 0, Math.PI * 2);
+        } else {
+          ctx.fillStyle = "#ff5d7a";
+          ctx.shadowColor = "#ff5d7a";
+          ctx.shadowBlur = 6;
+          ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+        }
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      });
+    });
+
+    ctx.beginPath();
+    ctx.fillStyle = hitFlash > 0 ? `rgba(255,255,255,${0.5 + hitFlash * 0.5})` : "#7ee0ff";
+    ctx.arc(hero.x, hero.y, HERO_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.strokeStyle = "rgba(126, 224, 255, 0.25)";
+    ctx.lineWidth = 1;
+    ctx.arc(hero.x, hero.y, GRAZE_RADIUS, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // --- ゲームループ ---
+  function tick(ts) {
+    if (lastTs == null) lastTs = ts;
+    const dt = Math.min((ts - lastTs) / 1000, 1 / 20);
+    lastTs = ts;
+
+    let dx = 0, dy = 0;
+    if (keys["arrowleft"] || keys["a"]) dx -= 1;
+    if (keys["arrowright"] || keys["d"]) dx += 1;
+    if (keys["arrowup"] || keys["w"]) dy -= 1;
+    if (keys["arrowdown"] || keys["s"]) dy += 1;
+    if (dx !== 0 || dy !== 0) {
+      const len = Math.hypot(dx, dy) || 1;
+      hero = {
+        x: Math.max(HERO_RADIUS, Math.min(WIDTH - HERO_RADIUS, hero.x + (dx / len) * HERO_SPEED * dt)),
+        y: Math.max(HERO_RADIUS, Math.min(HEIGHT - HERO_RADIUS, hero.y + (dy / len) * HERO_SPEED * dt)),
+      };
+    }
+
+    let bulletCount = 0;
+    let grazeThisFrame = 0;
+    let hitThisFrame = false;
+
+    walls = walls
+      .map((wall) => {
+        const elapsed = ts - wall.createdAt;
+        const bullets = wall.bullets
+          .map((b) => advanceBullet(b, elapsed, dt))
+          .filter((b) => b.x > -40 && b.x < WIDTH + 40 && b.y > -40 && b.y < HEIGHT + 40);
+        return Object.assign({}, wall, { bullets });
+      })
+      .filter((wall) => wall.bullets.length > 0 || (ts - wall.createdAt) < 60000);
+
+    walls.forEach((wall) => {
+      wall.bullets.forEach((b) => {
+        if (!b.visible) return;
+        bulletCount++;
+        const d = dist(hero, b);
+        const key = wall.createdAt + ":" + b.id;
+        if (d < HERO_RADIUS + b.radius) {
+          hitThisFrame = true;
+        } else if (b.launched && d < GRAZE_RADIUS && !grazedIds.has(key)) {
+          grazedIds.add(key);
+          grazeThisFrame++;
+        }
+      });
+    });
+
+    if (hitThisFrame) hitFlash = 1;
+    hitFlash = Math.max(0, hitFlash - dt * 2);
+
+    stats.wallCount = walls.length;
+    stats.bulletCount = bulletCount;
+    stats.grazeCount += grazeThisFrame;
+    stats.hits += hitThisFrame ? 1 : 0;
+    if (walls.length) stats.regularity = walls[walls.length - 1].regularity;
+    renderHud();
+
+    draw();
+    requestAnimationFrame(tick);
+  }
+
+  renderHud();
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
