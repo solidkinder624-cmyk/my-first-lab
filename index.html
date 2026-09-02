@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>アプリ一覧</title>
+<style>
+  :root {
+    --bg: #f4f6fb;
+    --panel: #ffffff;
+    --border: #e1e6f0;
+    --text: #24304a;
+    --sub: #6b7690;
+    --primary: #3a7bfd;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    padding: 32px 24px 8px;
+    text-align: center;
+  }
+  header h1 { margin: 0 0 6px; font-size: 24px; }
+  header p { margin: 0; color: var(--sub); font-size: 14px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 20px;
+    padding: 24px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  a.app-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 16px;
+    text-decoration: none;
+    color: var(--text);
+    text-align: center;
+    /* タブレットで指でタップしやすいよう、カード全体を大きめの当たり判定にする */
+    min-height: 160px;
+    justify-content: center;
+    transition: transform 0.1s, border-color 0.1s;
+  }
+  a.app-card:active { transform: scale(0.97); }
+  a.app-card:hover { border-color: var(--primary); }
+  .app-icon {
+    font-size: 40px;
+    width: 72px;
+    height: 72px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #eef2ff;
+  }
+  .app-title { font-size: 16px; font-weight: bold; }
+  .app-desc { font-size: 12px; color: var(--sub); line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>アプリ一覧</h1>
+  <p>タップして起動したいアプリを選んでください。</p>
+</header>
+
+<div class="grid">
+  <a class="app-card" href="learning-app/index.html">
+    <div class="app-icon">📘</div>
+    <div class="app-title">コードならい</div>
+    <div class="app-desc">1ステップずつ課題を解きながら学ぶ、プログラミング学習アプリ</div>
+  </a>
+
+  <a class="app-card" href="games/geometry-dash/index.html">
+    <div class="app-icon">🚀</div>
+    <div class="app-title">NEON RUSH</div>
+    <div class="app-desc">ジオメトリーダッシュ風のアクションゲーム(タイミングよくジャンプして障害物を避けるゲーム)</div>
+  </a>
+
+  <a class="app-card" href="games/graze-and-grace/index.html">
+    <div class="app-icon">🎮</div>
+    <div class="app-title">GRAZE &amp; GRACE</div>
+    <div class="app-desc">画面をスワイプして弾幕(だんまく、敵の弾がたくさん飛んでくる仕掛け)の壁を作るプロトタイプ</div>
+  </a>
+</div>
+
+</body>
+</html>
