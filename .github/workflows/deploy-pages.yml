@@ -1,0 +1,40 @@
+name: Deploy to GitHub Pages
+
+# Trigger layer: mainブランチへのpush、または手動実行(workflow_dispatch)で
+# リポジトリ全体を GitHub Pages として公開する。ビルド不要な静的ファイル
+# (index.html / learning-app/ / games/ など)をそのまま配信する。
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同時に複数のデプロイが走らないようにする(前の公開が終わるまで次を待つ)
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
