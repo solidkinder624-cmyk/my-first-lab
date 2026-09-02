@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>コードならい - プログラミング学習アプリ</title>
+<style>
+  :root {
+    --bg: #f4f6fb;
+    --panel: #ffffff;
+    --border: #e1e6f0;
+    --text: #24304a;
+    --sub: #6b7690;
+    --primary: #3a7bfd;
+    --primary-dark: #2a5fd6;
+    --success: #2fb380;
+    --danger: #e0554f;
+    --locked: #c7cede;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  header .xp {
+    font-size: 14px;
+    color: var(--sub);
+    background: #eef2ff;
+    padding: 6px 12px;
+    border-radius: 999px;
+  }
+  .layout {
+    display: flex;
+    min-height: calc(100vh - 57px);
+  }
+  nav.sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 16px;
+    overflow-y: auto;
+  }
+  .course-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .course-card:hover { border-color: var(--primary); }
+  .course-card.active { border-color: var(--primary); background: #f2f6ff; }
+  .course-card h3 { margin: 0 0 4px; font-size: 15px; }
+  .course-card p { margin: 0 0 8px; font-size: 12px; color: var(--sub); }
+  .bar {
+    height: 6px;
+    background: #e7ecf6;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .bar > div { height: 100%; background: var(--success); }
+  .lesson-list { margin-top: 8px; }
+  .lesson-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .lesson-item:hover { background: #f2f6ff; }
+  .lesson-item.active { background: #e5edff; font-weight: bold; }
+  .lesson-item.locked { color: var(--locked); cursor: not-allowed; }
+  .lesson-item .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--locked); flex-shrink: 0;
+  }
+  .lesson-item.done .dot { background: var(--success); }
+  .lesson-item.active .dot { background: var(--primary); }
+  main {
+    flex: 1;
+    padding: 32px;
+    max-width: 780px;
+  }
+  .step-progress {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 20px;
+  }
+  .step-progress .seg {
+    flex: 1;
+    height: 6px;
+    border-radius: 4px;
+    background: #e7ecf6;
+  }
+  .step-progress .seg.done { background: var(--success); }
+  .step-progress .seg.current { background: var(--primary); }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+  .panel h2 { margin-top: 0; font-size: 20px; }
+  .body-text {
+    white-space: pre-wrap;
+    line-height: 1.7;
+    color: #3b4560;
+    font-size: 14px;
+  }
+  code, pre, textarea.code {
+    font-family: "SFMono-Regular", Consolas, "Courier New", monospace;
+  }
+  pre.code-block {
+    background: #1e2434;
+    color: #e6ebff;
+    padding: 14px;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .blank-input {
+    display: inline-block;
+    width: 70px;
+    padding: 2px 6px;
+    border: 1px solid var(--primary);
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: inherit;
+    background: #fffdf2;
+  }
+  textarea.code {
+    width: 100%;
+    min-height: 140px;
+    background: #1e2434;
+    color: #e6ebff;
+    border: none;
+    border-radius: 8px;
+    padding: 14px;
+    font-size: 13px;
+    line-height: 1.6;
+    resize: vertical;
+  }
+  .choices { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+  .choice {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .choice:hover { border-color: var(--primary); }
+  .choice.selected { border-color: var(--primary); background: #f2f6ff; }
+  .actions { margin-top: 20px; display: flex; align-items: center; gap: 12px; }
+  button {
+    font-family: inherit;
+    font-size: 14px;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 20px;
+    cursor: pointer;
+  }
+  button.primary { background: var(--primary); color: #fff; }
+  button.primary:hover { background: var(--primary-dark); }
+  button.primary:disabled { background: var(--locked); cursor: not-allowed; }
+  button.ghost { background: transparent; color: var(--sub); }
+  .feedback {
+    margin-top: 14px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 14px;
+  }
+  .feedback.ok { background: #e6f8f0; color: var(--success); }
+  .feedback.ng { background: #fdecea; color: var(--danger); }
+  .output-box {
+    margin-top: 12px;
+    background: #10131c;
+    color: #9be9a8;
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-family: monospace;
+    font-size: 13px;
+    white-space: pre-wrap;
+    min-height: 20px;
+  }
+  .hint { margin-top: 10px; font-size: 13px; color: var(--sub); }
+  .empty-state {
+    padding: 60px 20px;
+    text-align: center;
+    color: var(--sub);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>コードならい</h1>
+  <div class="xp" id="xpDisplay">XP: 0</div>
+</header>
+
+<div class="layout">
+  <nav class="sidebar" id="sidebar"></nav>
+  <main id="main"></main>
+</div>
+
+<script src="./core.js"></script>
+<script>
+(function () {
+  const core = window.LearningCore;
+  const storage = window.localStorage;
+
+  let state = {
+    courseId: core.COURSES[0].id,
+    lessonIndex: 0,
+    stepIndex: 0,
+    // 現在のステップで入力中の答え(未確定)。ステップを移動するとリセットされる。
+    draft: null,
+    lastResult: null, // { correct: boolean } | null
+    output: null,      // code-output の実行結果テキスト
+  };
+
+  function currentCourse() {
+    return core.findCourse(state.courseId);
+  }
+  function currentLesson() {
+    return currentCourse().lessons[state.lessonIndex];
+  }
+  function currentStep() {
+    return currentLesson().steps[state.stepIndex];
+  }
+
+  function resetDraftForStep(step) {
+    if (step.type === "fill-blank") {
+      state.draft = step.blanks.map(() => "");
+    } else if (step.type === "quiz") {
+      state.draft = null; // 選択されたindex
+    } else if (step.type === "code-output") {
+      state.draft = step.starterCode;
+    } else {
+      state.draft = null;
+    }
+    state.lastResult = null;
+    state.output = null;
+  }
+
+  function goTo(courseId, lessonIndex, stepIndex) {
+    state.courseId = courseId;
+    state.lessonIndex = lessonIndex;
+    state.stepIndex = stepIndex;
+    const step = core.findCourse(courseId).lessons[lessonIndex].steps[stepIndex];
+    resetDraftForStep(step);
+    render();
+  }
+
+  function selectCourse(courseId) {
+    const progress = core.loadProgress(storage);
+    const course = core.findCourse(courseId);
+    // そのコースで最初に未完了のステップまで自動的に移動する(続きから再開)。
+    for (let li = 0; li < course.lessons.length; li++) {
+      const lesson = course.lessons[li];
+      for (let si = 0; si < lesson.steps.length; si++) {
+        if (!core.isStepCompleted(progress, course.id, lesson.id, lesson.steps[si].id)) {
+          goTo(course.id, li, si);
+          return;
+        }
+      }
+    }
+    goTo(course.id, 0, 0);
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function renderSidebar() {
+    const progress = core.loadProgress(storage);
+    const sidebar = document.getElementById("sidebar");
+    sidebar.innerHTML = "";
+
+    core.COURSES.forEach((course) => {
+      const cp = core.courseProgressCount(course, progress);
+      const card = document.createElement("div");
+      card.className = "course-card" + (course.id === state.courseId ? " active" : "");
+      card.innerHTML = `
+        <h3>${escapeHtml(course.title)}</h3>
+        <p>${escapeHtml(course.description)}</p>
+        <div class="bar"><div style="width:${cp.percent}%"></div></div>
+        <div class="hint" style="margin-top:6px;">${cp.completed} / ${cp.total} 完了(${cp.percent}%)</div>
+      `;
+      card.addEventListener("click", () => selectCourse(course.id));
+      sidebar.appendChild(card);
+
+      if (course.id === state.courseId) {
+        const list = document.createElement("div");
+        list.className = "lesson-list";
+        course.lessons.forEach((lesson, li) => {
+          const unlocked = core.isLessonUnlocked(course, li, progress);
+          const done = core.isLessonCompleted(course, lesson, progress);
+          const isActive = li === state.lessonIndex;
+          const item = document.createElement("div");
+          item.className =
+            "lesson-item" +
+            (isActive ? " active" : "") +
+            (!unlocked ? " locked" : "") +
+            (done ? " done" : "");
+          const lp = core.lessonProgressCount(course, lesson, progress);
+          item.innerHTML = `<span class="dot"></span><span>${escapeHtml(lesson.title)}</span>
+            <span style="margin-left:auto;color:#9aa4bd;font-size:11px;">${lp.completed}/${lp.total}</span>`;
+          if (unlocked) {
+            item.addEventListener("click", () => {
+              // レッスン内で最初の未完了ステップに移動する
+              for (let si = 0; si < lesson.steps.length; si++) {
+                if (!core.isStepCompleted(progress, course.id, lesson.id, lesson.steps[si].id)) {
+                  goTo(course.id, li, si);
+                  return;
+                }
+              }
+              goTo(course.id, li, 0);
+            });
+          }
+          list.appendChild(item);
+        });
+        sidebar.appendChild(list);
+      }
+    });
+  }
+
+  function renderStepProgress(course, lesson, progress) {
+    const wrap = document.createElement("div");
+    wrap.className = "step-progress";
+    lesson.steps.forEach((step, si) => {
+      const seg = document.createElement("div");
+      const done = core.isStepCompleted(progress, course.id, lesson.id, step.id);
+      seg.className = "seg" + (done ? " done" : si === state.stepIndex ? " current" : "");
+      wrap.appendChild(seg);
+    });
+    return wrap;
+  }
+
+  function runCode(code) {
+    // ユーザーが書いたJSコードを実行し、console.logの出力をまとめて文字列にして返す。
+    // Functionコンストラクタでグローバルスコープから隔離しつつ、console.logだけ差し替えて
+    // 出力を捕まえる、学習アプリ向けの簡易サンドボックス。
+    const lines = [];
+    const fakeConsole = {
+      log: (...args) => {
+        lines.push(args.map((a) => (typeof a === "object" ? JSON.stringify(a) : String(a))).join(" "));
+      },
+    };
+    try {
+      const fn = new Function("console", code);
+      fn(fakeConsole);
+      return { ok: true, text: lines.join("\n") };
+    } catch (err) {
+      return { ok: false, text: "エラー: " + err.message };
+    }
+  }
+
+  function handleCheck() {
+    const step = currentStep();
+    const course = currentCourse();
+    const lesson = currentLesson();
+
+    if (step.type === "code-output") {
+      const result = runCode(state.draft);
+      state.output = result.text;
+      if (!result.ok) {
+        state.lastResult = { correct: false };
+        render();
+        return;
+      }
+      state.lastResult = core.checkAnswer(step, result.text);
+    } else {
+      state.lastResult = core.checkAnswer(step, state.draft);
+    }
+
+    if (state.lastResult.correct) {
+      core.markStepComplete(storage, course.id, lesson.id, step.id);
+    }
+    render();
+  }
+
+  function handleNext() {
+    const course = currentCourse();
+    const next = core.getNextPosition(course, state.lessonIndex, state.stepIndex);
+    if (next) {
+      goTo(course.id, next.lessonIndex, next.stepIndex);
+    } else {
+      render(); // コース修了状態を表示
+    }
+  }
+
+  function renderStepBody(step) {
+    const body = document.createElement("div");
+
+    const bodyText = document.createElement("div");
+    bodyText.className = "body-text";
+    bodyText.textContent = step.body;
+    body.appendChild(bodyText);
+
+    if (step.type === "lesson") {
+      // 読むだけ。特に入力UIは無い。
+    } else if (step.type === "fill-blank") {
+      const codeBlock = document.createElement("pre");
+      codeBlock.className = "code-block";
+      const parts = step.template.split(/___(\d+)___/);
+      // parts は [固定文字, 番号, 固定文字, 番号, 固定文字, ...] の並びになる
+      parts.forEach((part, idx) => {
+        if (idx % 2 === 0) {
+          codeBlock.appendChild(document.createTextNode(part));
+        } else {
+          const blankIndex = Number(part);
+          const input = document.createElement("input");
+          input.className = "blank-input";
+          input.value = state.draft[blankIndex] || "";
+          input.addEventListener("input", (e) => {
+            state.draft[blankIndex] = e.target.value;
+          });
+          codeBlock.appendChild(input);
+        }
+      });
+      body.appendChild(codeBlock);
+    } else if (step.type === "quiz") {
+      const choicesEl = document.createElement("div");
+      choicesEl.className = "choices";
+      step.choices.forEach((choice, idx) => {
+        const choiceEl = document.createElement("div");
+        choiceEl.className = "choice" + (state.draft === idx ? " selected" : "");
+        choiceEl.textContent = choice;
+        choiceEl.addEventListener("click", () => {
+          state.draft = idx;
+          render();
+        });
+        choicesEl.appendChild(choiceEl);
+      });
+      body.appendChild(choicesEl);
+    } else if (step.type === "code-output") {
+      const textarea = document.createElement("textarea");
+      textarea.className = "code";
+      textarea.spellcheck = false;
+      textarea.value = state.draft;
+      textarea.addEventListener("input", (e) => {
+        state.draft = e.target.value;
+      });
+      body.appendChild(textarea);
+
+      if (state.output !== null) {
+        const outputBox = document.createElement("div");
+        outputBox.className = "output-box";
+        outputBox.textContent = state.output || "(出力なし)";
+        body.appendChild(outputBox);
+      }
+    }
+
+    if (step.hint) {
+      const hint = document.createElement("div");
+      hint.className = "hint";
+      hint.textContent = "ヒント: " + step.hint;
+      body.appendChild(hint);
+    }
+
+    return body;
+  }
+
+  function render() {
+    document.getElementById("xpDisplay").textContent = "XP: " + core.loadProgress(storage).xp;
+    renderSidebar();
+
+    const main = document.getElementById("main");
+    main.innerHTML = "";
+
+    const course = currentCourse();
+    const lesson = currentLesson();
+    const step = currentStep();
+    const progress = core.loadProgress(storage);
+
+    main.appendChild(renderStepProgress(course, lesson, progress));
+
+    const panel = document.createElement("div");
+    panel.className = "panel";
+
+    const title = document.createElement("h2");
+    title.textContent = step.title;
+    panel.appendChild(title);
+
+    panel.appendChild(renderStepBody(step));
+
+    if (state.lastResult) {
+      const feedback = document.createElement("div");
+      feedback.className = "feedback " + (state.lastResult.correct ? "ok" : "ng");
+      feedback.textContent = state.lastResult.correct ? "正解です!" : "もう一度試してみましょう。";
+      panel.appendChild(feedback);
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "actions";
+
+    if (step.type === "lesson") {
+      const nextBtn = document.createElement("button");
+      nextBtn.className = "primary";
+      nextBtn.textContent = "理解した、次へ";
+      nextBtn.addEventListener("click", () => {
+        core.markStepComplete(storage, course.id, lesson.id, step.id);
+        handleNext();
+      });
+      actions.appendChild(nextBtn);
+    } else if (state.lastResult && state.lastResult.correct) {
+      const nextBtn = document.createElement("button");
+      nextBtn.className = "primary";
+      nextBtn.textContent = "次へ進む";
+      nextBtn.addEventListener("click", handleNext);
+      actions.appendChild(nextBtn);
+    } else {
+      const checkBtn = document.createElement("button");
+      checkBtn.className = "primary";
+      checkBtn.textContent = step.type === "code-output" ? "実行して確認" : "確認する";
+      checkBtn.addEventListener("click", handleCheck);
+      actions.appendChild(checkBtn);
+    }
+
+    panel.appendChild(actions);
+    main.appendChild(panel);
+  }
+
+  selectCourse(state.courseId);
+})();
+</script>
+</body>
+</html>

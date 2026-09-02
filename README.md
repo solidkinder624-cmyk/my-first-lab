@@ -296,3 +296,50 @@ node games/graze-and-grace/verify.mjs
   「外部ライブラリなし・ファイルを直接開くだけ」方針で実装した。`core.js` は
   フレームワーク非依存の純関数なので、React/Unity/Godot 等へ載せ替える場合も
   ロジックはそのまま流用できる。
+
+## コードならい ― ステップ形式プログラミング学習アプリ (learning-app/)
+
+Progate（1ステップずつ「説明を読む→演習を解く」を繰り返す学習サービス）を参考にした、
+プログラミング初心者向けの学習アプリ。外部ライブラリなし・ビルド不要の HTML/JS 製で、
+`learning-app/index.html` をブラウザで開くだけで遊べる。
+
+```bash
+# ローカルで開く
+xdg-open learning-app/index.html    # macOS なら open
+
+# 採点・進捗管理ロジックだけを Node で検証する
+node learning-app/verify.mjs
+```
+
+### 学べる内容
+
+現時点では「JavaScript入門」（変数・条件分岐・配列とくり返し）と「HTML入門」
+（タグの基本・リンクと画像）の2コースを収録。各コースはレッスン単位、
+各レッスンはステップ単位に分かれており、前のステップを終えないと次には
+進めない（Progateと同じ一本道の学習順序）。
+
+### 対応している演習形式（「様々な形式」の内訳）
+
+| 形式 | 内容 |
+|---|---|
+| `lesson` | 説明を読むだけのスライド |
+| `quiz` | 選択肢から正解を選ぶ |
+| `fill-blank` | コードの空欄を埋める |
+| `code-output` | 実際にJavaScriptコードを書いて実行し、出力をお手本と比較する |
+
+### 実装メモ
+
+- `core.js` は採点ロジック（`checkAnswer` とその内訳）・進捗の保存/読み込み
+  （`localStorage`、キーは `learningApp.progress.v1`）・レッスンやステップの
+  アンロック判定（`isLessonUnlocked` / `isStepUnlocked`）を持つ、DOMに依存しない
+  純関数群。graze-and-grace と同じUMDパターンで、ブラウザからは `<script>` タグ、
+  `verify.mjs` からは Node の `require` で同じファイルをそのまま読み込む。
+- `code-output` 形式は `Function` コンストラクタでユーザーのコードを実行し、
+  `console.log` だけを差し替えて出力を捕まえる簡易サンドボックス。ブラウザの
+  タブ内で完結し、外部通信は行わない。
+- 進捗はステップ単位で `localStorage` に保存されるため、ブラウザを閉じても
+  続きから再開できる。同じステップを何度クリアしてもXPが二重に増えないよう、
+  完了済みステップの再完了は無視する。
+- Python等の他言語は、ブラウザ上での実行環境（Pyodide等）を追加すると
+  外部ライブラリへの依存が増えるため、まずは `fill-blank` / `quiz` 形式で
+  対応する想定（現時点ではJS用の`code-output`のみ実装）。
