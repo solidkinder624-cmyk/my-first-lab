@@ -12,9 +12,10 @@ full body portrait）を末尾に付けている。
   シリーズとしての統一感が出しやすい。
 - 顔立ちを固定してポーズ違い・衣装違いを量産したい場合は `--cref <画像URL>`
   （キャラクター参照、Niji 6で対応）を使う。
-- `--niji 6` の中でも `--style expressive` はドラマチックな陰影と作り込んだ衣装が
-  出やすく、この企画のダークファンタジー耽美路線と相性が良い。可愛らしさを強めたい
-  場合は `--style cute`、写実寄りにしたい場合は `--style scenic` も試す価値がある。
+- NijiJourneyのモバイルアプリでは `--niji 6` とテキストの `--style` パラメータは
+  併用できない（`` `--style` is not compatible with `--niji 6` `` というエラーになる）。
+  作風の調整はプロンプト末尾のテキストではなく、画面下のツールバーのパレットアイコンから
+  スタイルを選ぶ（Expressive/Cute/Scenic 相当のプリセットがそこにある）。
 - 単語の重み付けは `::` で調整できる（例: `slender dancer's physique::1.5`）。
   体型の個性が薄いと感じたら該当ワードの重みを上げる。
 
@@ -32,7 +33,7 @@ starry night sky, wearing a celestial armillary sphere pendant, delicate
 fingers conjuring glowing stardust particles, surrounded by faint
 constellation lines, gothic dark fantasy, decadent elegant atmosphere,
 cinematic dramatic lighting, intricate ornate costume design,
-full body portrait --ar 2:3 --niji 6 --style expressive
+full body portrait --ar 2:3 --niji 6
 ```
 
 ## 2. 神殿の聖騎士（白亡の裁定者）
@@ -46,7 +47,7 @@ concealing her face with only glowing eyes visible, alluring exposed nape
 and neckline, wing-shaped armor motifs on her back, wielding a sword made
 of condensed radiant light, gothic dark fantasy, decadent elegant
 atmosphere, cinematic dramatic lighting, intricate ornate armor design,
-full body portrait --ar 2:3 --niji 6 --style expressive
+full body portrait --ar 2:3 --niji 6
 ```
 
 ## 3. 妖精の女王（常夜の花園主）
@@ -60,7 +61,7 @@ wings on her back, barefoot and floating slightly above the ground,
 surrounded by falling petals and thorny vine tendrils, gothic dark
 fantasy, decadent elegant atmosphere, cinematic dramatic lighting,
 intricate botanical costume design, full body portrait
---ar 2:3 --niji 6 --style expressive
+--ar 2:3 --niji 6
 ```
 
 ## 4. 深淵のネクロマンサー（終幕の道化）
@@ -73,5 +74,5 @@ covering half her face, holding a bone-shaped cane, shrouded in purple
 smoke, a small will-o'-the-wisp flame flickering on her fingertip, eerie
 yet youthful expression, gothic dark fantasy, decadent theatrical
 atmosphere, cinematic dramatic lighting, intricate ornate costume design,
-full body portrait --ar 2:3 --niji 6 --style expressive
+full body portrait --ar 2:3 --niji 6
 ```
