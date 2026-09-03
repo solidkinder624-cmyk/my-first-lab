@@ -1,0 +1,18 @@
+{
+  "job_id": "daily-ai-news-2026-09-03",
+  "idempotency_key": "daily-ai-news-2026-09-03",
+  "status": "completed",
+  "current_step": "completed",
+  "retryable": true,
+  "article_count": 6,
+  "selected_count": 5,
+  "ranking_calls": 1,
+  "summary_regenerations": 0,
+  "fetch_attempts": 1,
+  "cost_usd": 0.15,
+  "notion_saved": true,
+  "slack_sent": true,
+  "last_error": null,
+  "next_action": "none",
+  "updated_at": "2026-09-03T01:05:20.536439+00:00"
+}
