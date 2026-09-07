@@ -83,6 +83,22 @@ button:disabled { opacity: 0.4; cursor: default; }
   font-size: 12.5px;
 }
 
+#spellcard-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #9aa4d6;
+}
+#record-btn.recording {
+  background: #4a1c2a;
+  border-color: #b3455f;
+  color: #ffb8c9;
+}
+#spellcard-status.clear { color: #7ee0ff; }
+#spellcard-status.failed { color: #ff5d7a; }
+
 #shield-row {
   display: flex;
   align-items: center;

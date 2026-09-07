@@ -113,6 +113,21 @@
     padding: 3px 8px;
     font-size: 12.5px;
   }
+  #spellcard-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: #9aa4d6;
+  }
+  #record-btn.recording {
+    background: #4a1c2a;
+    border-color: #b3455f;
+    color: #ffb8c9;
+  }
+  #spellcard-status.clear { color: #7ee0ff; }
+  #spellcard-status.failed { color: #ff5d7a; }
   #score-panel {
     display: flex;
     flex-wrap: wrap;
@@ -188,6 +203,13 @@
       <option value="tas">AI: TAS型</option>
     </select>
   </div>
+  <div id="spellcard-row">
+    <span>実証実験モード:</span>
+    <button id="record-btn" type="button">● 録画開始</button>
+    <button id="playback-btn" type="button" disabled>▶ 再生してクリア判定</button>
+    <button id="exit-challenge-btn" type="button" hidden>■ 退出(自由に弾幕作成へ戻る)</button>
+    <span id="spellcard-status"></span>
+  </div>
   <div id="shield-row">
     <span>シールド:</span>
     <div id="shield-gauge"><div id="shield-gauge-fill"></div></div>
@@ -224,7 +246,11 @@
     「勇者の操作」を切り替えると、企画書4.1のソロモード用AIで遊べます。
     <b>ビギナー型</b>は近い弾から単純に逃げるだけ（誘導して追い詰められる）、
     <b>スコアラー型</b>はわざと弾に寄ってカスリを稼ごうとする（罠を張りやすい）、
-    <b>TAS型</b>は周囲の弾を先読みしてほぼ機械的に回避する（隙間で囲む弾幕が必要）。
+    <b>TAS型</b>は周囲の弾を先読みしてほぼ機械的に回避する（隙間で囲む弾幕が必要）。<br>
+    「実証実験モード」（企画書4.2）では、● 録画開始 を押してからスワイプで弾幕を組むと、
+    その順序とタイミングがそのまま記録されます。■ 録画終了 の後、▶ 再生してクリア判定
+    を押すと同じ弾幕がもう一度自動再生され、今度は自分（または選んだAI）がそれを回避します。
+    最後まで被弾しなければ「クリア」。■ 退出 でいつでも自由な作成モードに戻れます。
   </p>
 </div>
 
@@ -241,6 +267,7 @@
 <script src="./score.js"></script>
 <script src="./rhythm.js"></script>
 <script src="./ai.js"></script>
+<script src="./spellcard.js"></script>
 <script>
 (function () {
   "use strict";
@@ -263,6 +290,13 @@
     syncAccuracy,
   } = window.GrazeRhythm;
   const { decideMove: decideAiMove } = window.GrazeAI;
+  const {
+    createSpellCard,
+    recordSwipe,
+    cardDurationMs,
+    dueEvents,
+    isPlaybackComplete,
+  } = window.GrazeSpellCard;
 
   const WIDTH = 720;
   const HEIGHT = 480;
@@ -299,6 +333,23 @@
   const musicBtn = document.getElementById("music-btn");
   const beatPulseEl = document.getElementById("beat-pulse");
   const heroModeSelect = document.getElementById("hero-mode-select");
+
+  const recordBtn = document.getElementById("record-btn");
+  const playbackBtn = document.getElementById("playback-btn");
+  const exitChallengeBtn = document.getElementById("exit-challenge-btn");
+  const spellcardStatus = document.getElementById("spellcard-status");
+
+  // ゲームモード「実証実験モード（セルフチャレンジ）」の状態。
+  //   freeplay   : 通常どおり自由にスワイプして弾幕を組む(既定)
+  //   recording  : freeplay と同じ挙動だが、スワイプを spellcard.js で記録する
+  //   challenge  : スワイプ入力は無効。記録済みカードを自動再生し、回避に専念する
+  let mode = "freeplay";
+  let recordedCard = createSpellCard();
+  let recordingStartedAt = 0;
+  let challengeCard = null;
+  let challengeStartedAt = 0;
+  let challengeIndex = 0;
+  let challengeResult = null; // null | "clear" | "failed"
 
   let walls = []; // {createdAt, bullets, pushDir, regularity}
   let drawingPoints = null; // 現在ドロー中のスワイプ点列
@@ -379,6 +430,80 @@
   }
   shieldBtn.addEventListener("click", tryActivateShield);
 
+  // --- ゲームモード: 実証実験モード（セルフチャレンジ、企画書4.2） ---
+  function renderSpellcardUi() {
+    spellcardStatus.classList.remove("clear", "failed");
+    if (mode === "recording") {
+      recordBtn.textContent = "■ 録画終了";
+      recordBtn.classList.add("recording");
+      playbackBtn.disabled = true;
+      exitChallengeBtn.hidden = true;
+      spellcardStatus.textContent = `録画中… ${recordedCard.events.length}個の壁`;
+    } else if (mode === "challenge") {
+      recordBtn.disabled = true;
+      playbackBtn.disabled = true;
+      exitChallengeBtn.hidden = false;
+      if (challengeResult === "clear") {
+        spellcardStatus.textContent = "クリア！ 被弾せずに耐え切りました";
+        spellcardStatus.classList.add("clear");
+      } else if (challengeResult === "failed") {
+        spellcardStatus.textContent = "被弾……もう一度挑戦しますか？";
+        spellcardStatus.classList.add("failed");
+      } else {
+        spellcardStatus.textContent = `再生中… (${challengeIndex}/${challengeCard.events.length})`;
+      }
+    } else {
+      recordBtn.disabled = false;
+      recordBtn.textContent = "● 録画開始";
+      recordBtn.classList.remove("recording");
+      exitChallengeBtn.hidden = true;
+      playbackBtn.disabled = recordedCard.events.length === 0;
+      spellcardStatus.textContent = recordedCard.events.length
+        ? `記録済み: ${recordedCard.events.length}個の壁 (${(cardDurationMs(recordedCard) / 1000).toFixed(1)}秒)`
+        : "";
+    }
+  }
+
+  recordBtn.addEventListener("click", () => {
+    if (mode === "recording") {
+      mode = "freeplay";
+    } else if (mode === "freeplay") {
+      mode = "recording";
+      recordedCard = createSpellCard();
+      recordingStartedAt = performance.now();
+      resetGame();
+    }
+    renderSpellcardUi();
+  });
+
+  playbackBtn.addEventListener("click", () => {
+    if (mode !== "freeplay" || recordedCard.events.length === 0) return;
+    mode = "challenge";
+    challengeCard = recordedCard;
+    challengeStartedAt = performance.now();
+    challengeIndex = 0;
+    challengeResult = null;
+    resetGame();
+    renderSpellcardUi();
+  });
+
+  exitChallengeBtn.addEventListener("click", () => {
+    mode = "freeplay";
+    challengeCard = null;
+    challengeResult = null;
+    resetGame();
+    renderSpellcardUi();
+  });
+
+  // 実証実験モードの再生: 記録済みカードのイベントを経過時間どおりに発火する。
+  // tick() から毎フレーム呼ぶ。
+  function playbackTick(ts) {
+    const elapsedMs = ts - challengeStartedAt;
+    const { due, nextIndex } = dueEvents(challengeCard, elapsedMs, challengeIndex);
+    challengeIndex = nextIndex;
+    due.forEach((event) => spawnWallFromPoints(event.points, ts));
+  }
+
   // --- Phase 4: 音楽同期。WebAudio でメトロノーム(拍のクリック音)を合成する ---
   function playClick(time, isDownbeatClick) {
     const osc = audioCtx.createOscillator();
@@ -447,6 +572,7 @@
   }
 
   canvas.addEventListener("pointerdown", (evt) => {
+    if (mode === "challenge") return; // 実証実験モード中はスワイプで壁を作れない
     canvas.setPointerCapture(evt.pointerId);
     drawingPoints = [toCanvasPoint(evt)];
   });
@@ -460,13 +586,9 @@
     }
   });
 
-  function finishSwipe() {
-    const points = drawingPoints;
-    drawingPoints = null;
-    if (!points || points.length < 2) return;
-
-    const createdAt = performance.now();
-
+  // スワイプ点列から壁を1つ生成して walls / scoreLog に積む。
+  // ライブ入力(finishSwipe)と実証実験モードの再生(playbackTick)の両方から呼ばれる。
+  function spawnWallFromPoints(points, createdAt) {
     // Phase 4: 音楽が鳴っていれば、予告時間をスワイプ完了時刻から
     // 「一番近い次の拍」までの時間に合わせる ―― 壁は常に拍ピッタリで発射される。
     let telegraphMs = FALLBACK_TELEGRAPH_MS;
@@ -498,6 +620,20 @@
       bulletCount: bullets.length,
       points: resampled,
     });
+  }
+
+  function finishSwipe() {
+    const points = drawingPoints;
+    drawingPoints = null;
+    if (mode === "challenge") return; // 実証実験モード中は再生される壁だけが表示される
+    if (!points || points.length < 2) return;
+
+    const createdAt = performance.now();
+    if (mode === "recording") {
+      recordedCard = recordSwipe(recordedCard, createdAt - recordingStartedAt, points);
+      renderSpellcardUi();
+    }
+    spawnWallFromPoints(points, createdAt);
   }
 
   canvas.addEventListener("pointerup", finishSwipe);
@@ -597,6 +733,8 @@
 
     updateBeatPulse(ts);
 
+    if (mode === "challenge") playbackTick(ts);
+
     let dx = 0, dy = 0;
     const heroMode = heroModeSelect.value;
     if (heroMode === "manual") {
@@ -671,11 +809,23 @@
     if (walls.length) stats.regularity = walls[walls.length - 1].regularity;
     renderHud();
 
+    if (mode === "challenge" && challengeResult === null) {
+      if (hitThisFrame) {
+        challengeResult = "failed";
+      } else if (isPlaybackComplete(challengeCard, challengeIndex) && bulletCount === 0) {
+        challengeResult = "clear";
+      }
+      renderSpellcardUi();
+    } else if (mode === "challenge") {
+      renderSpellcardUi();
+    }
+
     draw();
     requestAnimationFrame(tick);
   }
 
   renderHud();
+  renderSpellcardUi();
   requestAnimationFrame(tick);
 })();
 </script>

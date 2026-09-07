@@ -19,6 +19,7 @@ export default defineConfig({
       "graze-and-grace-core/score.js",
       "graze-and-grace-core/rhythm.js",
       "graze-and-grace-core/ai.js",
+      "graze-and-grace-core/spellcard.js",
     ],
   },
 })

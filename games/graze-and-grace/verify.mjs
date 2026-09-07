@@ -15,6 +15,7 @@ const core = require(join(here, "core.js"));
 const score = require(join(here, "score.js"));
 const rhythm = require(join(here, "rhythm.js"));
 const ai = require(join(here, "ai.js"));
+const spellcard = require(join(here, "spellcard.js"));
 
 let failures = 0;
 function check(name, cond) {
@@ -434,6 +435,60 @@ function makeBullet(overrides) {
     "TYPE_LABELS に3種類の表示名が揃っている",
     ai.TYPE_LABELS.beginner && ai.TYPE_LABELS.scorer && ai.TYPE_LABELS.tas
   );
+}
+
+// --- spellcard.js: 実証実験モード(記録＆再生) ---
+
+// 30. 空のカードは長さ0、記録すると末尾に追加され、時間の判定にも使える
+{
+  let card = spellcard.createSpellCard();
+  check("空のカードのdurationは0", spellcard.cardDurationMs(card) === 0);
+
+  card = spellcard.recordSwipe(card, 0, [{ x: 0, y: 0 }]);
+  card = spellcard.recordSwipe(card, 500, [{ x: 10, y: 10 }]);
+  card = spellcard.recordSwipe(card, 1200, [{ x: 20, y: 20 }]);
+  check("3件記録すると events.length===3", card.events.length === 3);
+  check("durationは最後のイベントのoffsetMs", spellcard.cardDurationMs(card) === 1200);
+}
+
+// 31. dueEvents: 経過時間に応じて発火すべきイベントだけを、二重発火せずに返す
+{
+  let card = spellcard.createSpellCard();
+  card = spellcard.recordSwipe(card, 0, [{ x: 0, y: 0 }]);
+  card = spellcard.recordSwipe(card, 500, [{ x: 1, y: 1 }]);
+  card = spellcard.recordSwipe(card, 1200, [{ x: 2, y: 2 }]);
+
+  const first = spellcard.dueEvents(card, 0, 0);
+  check("t=0では最初の1件だけ発火", first.due.length === 1 && first.nextIndex === 1);
+
+  const still = spellcard.dueEvents(card, 400, first.nextIndex);
+  check("次のイベント(500ms)より前では何も発火しない", still.due.length === 0 && still.nextIndex === 1);
+
+  const second = spellcard.dueEvents(card, 600, still.nextIndex);
+  check("500msを過ぎると2件目が発火", second.due.length === 1 && second.nextIndex === 2);
+
+  const rest = spellcard.dueEvents(card, 999999, second.nextIndex);
+  check("十分待てば残り全部発火する", rest.due.length === 1 && rest.nextIndex === 3);
+
+  const again = spellcard.dueEvents(card, 999999, rest.nextIndex);
+  check("発火済みのイベントは二度と返らない", again.due.length === 0 && again.nextIndex === 3);
+}
+
+// 32. 全イベント発火後は isPlaybackComplete が true になる
+{
+  let card = spellcard.createSpellCard();
+  card = spellcard.recordSwipe(card, 0, [{ x: 0, y: 0 }]);
+  check("録画直後・未再生では未完了", spellcard.isPlaybackComplete(card, 0) === false);
+  check("全件発火後のindexなら完了扱い", spellcard.isPlaybackComplete(card, 1) === true);
+  check("空のカードは常に完了扱い", spellcard.isPlaybackComplete(spellcard.createSpellCard(), 0) === true);
+}
+
+// 33. recordSwipe は元のカードを書き換えない(イミュータブル)
+{
+  const original = spellcard.createSpellCard();
+  const updated = spellcard.recordSwipe(original, 0, [{ x: 0, y: 0 }]);
+  check("元のカードは変更されない", original.events.length === 0);
+  check("新しいカードにだけイベントが増える", updated.events.length === 1);
 }
 
 console.log("");

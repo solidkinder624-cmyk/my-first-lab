@@ -253,12 +253,12 @@ Roblox API 非依存の純関数で、`verify.luau` が
 
 ---
 
-## GRAZE & GRACE ― 弾幕壁 ＆ 回避シールド ＆ 芸術点 ＆ 音楽同期 ＆ ソロモードAI プロトタイプ (games/graze-and-grace/)
+## GRAZE & GRACE ― 弾幕壁 ＆ 回避シールド ＆ 芸術点 ＆ 音楽同期 ＆ ソロモードAI ＆ 実証実験モード プロトタイプ (games/graze-and-grace/)
 
 企画書 (`games/graze-and-grace/GAME_DESIGN.md`) の Phase 1〜4（弾幕エンジンの基礎構築 /
 回避側の実装 / Grace & Graze スコア計算 / 音楽との同期システム）と、ゲームモード章の
-「1. ソロモード」のAI敵に対応するプロトタイプ。実装は2種類あり、ゲームロジック本体は
-共有している:
+「1. ソロモード」のAI敵・「2. 実証実験モード」に対応するプロトタイプ。実装は2種類あり、
+ゲームロジック本体は共有している:
 
 - **Canvas版**（外部ライブラリなし・ビルド不要）: `games/graze-and-grace/index.html`
   をブラウザで直接開くだけで遊べる。
@@ -268,12 +268,13 @@ Roblox API 非依存の純関数で、`verify.luau` が
 # Canvas版をローカルで開く
 xdg-open games/graze-and-grace/index.html    # macOS なら open
 
-# 弾幕の壁 生成ロジック / シールドシステム / スコア計算 / 拍クロック / AIだけを Node で検証する
+# 弾幕の壁 生成ロジック / シールドシステム / スコア計算 / 拍クロック / AI / 実証実験モードの
+# 記録・再生タイミングだけを Node で検証する
 node games/graze-and-grace/verify.mjs
 ```
 
 `.github/workflows/graze-and-grace-verify.yml` が `games/graze-and-grace/` 配下への
-push・PRのたびに上記 `verify.mjs`（90項目）と、React版の lint・ビルドを自動実行する。
+push・PRのたびに上記 `verify.mjs`（103項目）と、React版の lint・ビルドを自動実行する。
 Canvas版はnpmパッケージを一切使わないので、そちらのジョブは `actions/setup-node` だけで済む。
 
 ### 操作
@@ -283,6 +284,8 @@ Canvas版はnpmパッケージを一切使わないので、そちらのジョ�
 | 画面上をスワイプ（マウスドラッグ／タッチ） | その軌跡に沿って一定間隔の弾を並べ、「弾幕の壁」を生成する |
 | 「勇者の操作」セレクト | 手動(WASD/矢印キー)と、AI3種（ビギナー型/スコアラー型/TAS型）を切り替える |
 | `WASD` / 矢印キー（手動時のみ） | ヒーロー（勇者役の水色の点）を動かし、壁の隙間（安置）を回避する |
+| ● 録画開始／■ 録画終了 | スワイプした弾幕をタイミングごと記録する（実証実験モード） |
+| ▶ 再生してクリア判定／■ 退出 | 記録した弾幕を自動再生し、被弾せず耐え切れるか挑戦する。結果はクリア/被弾で判定 |
 | `Space` / 発動ボタン | シールドゲージがMAXのとき、無敵「イージス」を発動する（1プレイ5回まで） |
 | `M` / ♪ボタン | WebAudioで合成したメトロノームBGMを開始/停止する（BPMは開始前に変更可） |
 
@@ -337,8 +340,18 @@ Canvas版はnpmパッケージを一切使わないので、そちらのジョ�
   維持しようとする、`TAS型`は周囲16方向を候補として、各弾の速度から数フレーム先の位置を
   線形予測し、どの弾からも最も距離を確保できる方向を毎フレーム選び直す（簡易な近似で
   ポテンシャル場的に安全方向を探索している）。
-- `core.js` / `score.js` / `rhythm.js` / `ai.js` はフレームワーク非依存の純関数なので、
-  Canvas版プロトタイプと下記の React 版とで同じファイルをそのまま共有している。
+- 実証実験モード（`spellcard.js`、企画書4.2）は「スペルカード」＝記録されたスワイプ列
+  （録画開始からの相対時刻つき）の記録・再生タイミング判定だけを扱う純関数群。
+  `createSpellCard` / `recordSwipe` でカードを作り、再生中は毎フレーム
+  `dueEvents(card, elapsedMs, fromIndex)` を呼んで「発火すべきだが未発火のイベント」を
+  取り出す（`fromIndex` を渡すことで同じイベントを二重発火しない）。壁の実際の生成
+  （`buildBulletWall`呼び出し）は、ライブのスワイプ入力(`finishSwipe`)と再生
+  (`playbackTick`)の両方から同じ`spawnWallFromPoints`関数を呼ぶ形で共通化してあるので、
+  記録時と寸分違わない壁が再現される。クリア判定は「カードの全イベントを発火し終えて
+  (`isPlaybackComplete`)、かつ画面上の弾が0個になった」時点で成立し、途中で1回でも
+  被弾したら即座に「失敗」になる。
+- `core.js` / `score.js` / `rhythm.js` / `ai.js` / `spellcard.js` はフレームワーク非依存の
+  純関数なので、Canvas版プロトタイプと下記の React 版とで同じファイルをそのまま共有している。
 
 ### React版 (games/graze-and-grace/react-app/)
 
