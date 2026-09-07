@@ -1,0 +1,18 @@
+{
+  "job_id": "daily-ai-news-2026-09-02-rss-verify",
+  "idempotency_key": "daily-ai-news-2026-09-02-rss-verify",
+  "status": "failed",
+  "current_step": "queued",
+  "retryable": true,
+  "article_count": 0,
+  "selected_count": 0,
+  "ranking_calls": 0,
+  "summary_regenerations": 0,
+  "fetch_attempts": 3,
+  "cost_usd": 0.0,
+  "notion_saved": false,
+  "slack_sent": false,
+  "last_error": "network_error after 3 retries: https://venturebeat.com/category/ai/feed/: HTTP Error 429: Too Many Requests",
+  "next_action": "collect_sources",
+  "updated_at": "2026-09-07T10:23:58.430164+00:00"
+}
