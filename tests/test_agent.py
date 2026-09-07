@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from unittest import mock
 
 from ai_news_agent import guardrails, orchestrator, pipeline, sinks, sources, state
-from ai_news_agent.errors import ValidationError
+from ai_news_agent.errors import TransientError, ValidationError
 
 
 class SourcesTests(unittest.TestCase):
@@ -35,6 +35,49 @@ class SourcesTests(unittest.TestCase):
           <item><link>https://example.com/only-link</link></item>
         </channel></rss>"""
         self.assertEqual(sources._parse_rss(xml_text), [])
+
+    def test_fetch_one_source_sends_identifying_user_agent(self):
+        captured = {}
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def read(self):
+                return b"[]"
+
+        def fake_urlopen(request, timeout=10):
+            captured["headers"] = dict(request.header_items())
+            return FakeResponse()
+
+        with mock.patch.object(sources.urllib.request, "urlopen", side_effect=fake_urlopen):
+            sources._fetch_one_source("https://example.com/feed.json")
+
+        self.assertTrue(any("daily-ai-news-agent" in v for v in captured["headers"].values()))
+
+    def test_fetch_articles_continues_when_one_of_several_sources_fails(self):
+        os.environ["AI_NEWS_SOURCE_URL"] = "https://a.example/feed,https://b.example/feed"
+        ok_article = {"title": "ok", "url": "https://a.example/1", "published_at": "2026-09-07T00:00:00+00:00"}
+        try:
+            with mock.patch.object(
+                sources, "_fetch_one_source", side_effect=[[ok_article], TransientError("429")]
+            ):
+                articles = sources.fetch_articles()
+        finally:
+            os.environ.pop("AI_NEWS_SOURCE_URL", None)
+        self.assertEqual(articles, [ok_article])
+
+    def test_fetch_articles_raises_when_every_source_fails(self):
+        os.environ["AI_NEWS_SOURCE_URL"] = "https://a.example/feed"
+        try:
+            with mock.patch.object(sources, "_fetch_one_source", side_effect=TransientError("429")):
+                with self.assertRaises(TransientError):
+                    sources.fetch_articles()
+        finally:
+            os.environ.pop("AI_NEWS_SOURCE_URL", None)
 
 
 class PipelineTests(unittest.TestCase):
