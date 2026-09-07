@@ -17,6 +17,7 @@ import {
   nextBeatTime,
   syncAccuracy,
 } from "graze-and-grace-core/rhythm.js";
+import { decideMove as decideAiMove } from "graze-and-grace-core/ai.js";
 import "./App.css";
 
 // GRAZE & GRACE ― Phase 1+2+3+4 プロトタイプ (React版)
@@ -71,6 +72,7 @@ export default function App() {
   const musicBtnRef = useRef(null);
   const beatPulseRef = useRef(null);
   const resetBtnRef = useRef(null);
+  const heroModeSelectRef = useRef(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -363,10 +365,23 @@ export default function App() {
       updateBeatPulse(ts);
 
       let dx = 0, dy = 0;
-      if (keys["arrowleft"] || keys["a"]) dx -= 1;
-      if (keys["arrowright"] || keys["d"]) dx += 1;
-      if (keys["arrowup"] || keys["w"]) dy -= 1;
-      if (keys["arrowdown"] || keys["s"]) dy += 1;
+      const heroMode = heroModeSelectRef.current.value;
+      if (heroMode === "manual") {
+        if (keys["arrowleft"] || keys["a"]) dx -= 1;
+        if (keys["arrowright"] || keys["d"]) dx += 1;
+        if (keys["arrowup"] || keys["w"]) dy -= 1;
+        if (keys["arrowdown"] || keys["s"]) dy += 1;
+      } else {
+        const allBullets = [];
+        walls.forEach((wall) => allBullets.push(...wall.bullets));
+        const dir = decideAiMove(heroMode, hero, allBullets, {
+          width: WIDTH,
+          height: HEIGHT,
+          heroRadius: HERO_RADIUS,
+        });
+        dx = dir.x;
+        dy = dir.y;
+      }
       if (dx !== 0 || dy !== 0) {
         const len = Math.hypot(dx, dy) || 1;
         hero = {
@@ -462,7 +477,7 @@ export default function App() {
 
   return (
     <div id="game-root">
-      <h1>GRAZE &amp; GRACE ― Phase 1+2+3+4: 弾幕壁 ＆ シールド ＆ 芸術点 ＆ 音楽同期 (React版)</h1>
+      <h1>GRAZE &amp; GRACE ― Phase 1+2+3+4 ＋ ソロモードAI (React版)</h1>
       <div id="stage-wrap">
         <canvas ref={canvasRef} id="stage" width={WIDTH} height={HEIGHT} />
       </div>
@@ -473,6 +488,15 @@ export default function App() {
         <span>被弾: <b ref={statHitsRef}>0</b></span>
         <span>規則性(直近の壁): <b ref={statRegularityRef}>1.00</b></span>
         <button id="reset-btn" ref={resetBtnRef} type="button">リセット</button>
+      </div>
+      <div id="hero-mode-row">
+        <span>勇者の操作:</span>
+        <select id="hero-mode-select" ref={heroModeSelectRef} defaultValue="manual">
+          <option value="manual">手動 (WASD/矢印キー)</option>
+          <option value="beginner">AI: ビギナー型</option>
+          <option value="scorer">AI: スコアラー型</option>
+          <option value="tas">AI: TAS型</option>
+        </select>
       </div>
       <div id="shield-row">
         <span>シールド:</span>
@@ -506,7 +530,11 @@ export default function App() {
         スワイプを終えた瞬間から一番近い次の拍まで自動的に予告時間が調整され、弾幕の壁は
         必ず拍にピッタリ合わせて発射されます。壁を描き終えたタイミングが拍に近いほど
         「シンクロ率」が上がります（芸術点は Grace＝規則性・密度・継続性・美しさ・シンクロ率、
-        ＋ Graze＝連続カスリ、から算出）。
+        ＋ Graze＝連続カスリ、から算出）。<br />
+        「勇者の操作」を切り替えると、企画書4.1のソロモード用AIで遊べます。
+        <b>ビギナー型</b>は近い弾から単純に逃げるだけ（誘導して追い詰められる）、
+        <b>スコアラー型</b>はわざと弾に寄ってカスリを稼ごうとする（罠を張りやすい）、
+        <b>TAS型</b>は周囲の弾を先読みしてほぼ機械的に回避する（隙間で囲む弾幕が必要）。
       </p>
     </div>
   );

@@ -98,6 +98,21 @@
   #shield-gauge-fill.ready {
     background: linear-gradient(90deg, #ffd24f, #fff29f);
   }
+  #hero-mode-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: #9aa4d6;
+  }
+  #hero-mode-row select {
+    background: #131a30;
+    border: 1px solid #3a4380;
+    border-radius: 4px;
+    color: #e8ecff;
+    padding: 3px 8px;
+    font-size: 12.5px;
+  }
   #score-panel {
     display: flex;
     flex-wrap: wrap;
@@ -164,6 +179,15 @@
     <span>規則性(直近の壁): <b id="stat-regularity">1.00</b></span>
     <button id="reset-btn">リセット</button>
   </div>
+  <div id="hero-mode-row">
+    <span>勇者の操作:</span>
+    <select id="hero-mode-select">
+      <option value="manual">手動 (WASD/矢印キー)</option>
+      <option value="beginner">AI: ビギナー型</option>
+      <option value="scorer">AI: スコアラー型</option>
+      <option value="tas">AI: TAS型</option>
+    </select>
+  </div>
   <div id="shield-row">
     <span>シールド:</span>
     <div id="shield-gauge"><div id="shield-gauge-fill"></div></div>
@@ -196,21 +220,27 @@
     スワイプを終えた瞬間から一番近い次の拍まで自動的に予告時間が調整され、弾幕の壁は
     必ず拍にピッタリ合わせて発射されます。壁を描き終えたタイミングが拍に近いほど
     「シンクロ率」が上がります（芸術点は Grace＝規則性・密度・継続性・美しさ・シンクロ率、
-    ＋ Graze＝連続カスリ、から算出）。
+    ＋ Graze＝連続カスリ、から算出）。<br>
+    「勇者の操作」を切り替えると、企画書4.1のソロモード用AIで遊べます。
+    <b>ビギナー型</b>は近い弾から単純に逃げるだけ（誘導して追い詰められる）、
+    <b>スコアラー型</b>はわざと弾に寄ってカスリを稼ごうとする（罠を張りやすい）、
+    <b>TAS型</b>は周囲の弾を先読みしてほぼ機械的に回避する（隙間で囲む弾幕が必要）。
   </p>
 </div>
 
 <!--
-  Phase 1/2/3/4 の核となるロジック（DOM非依存）。verify.mjs から Node でも直接テストする。
+  Phase 1/2/3/4 とゲームモード(ソロモードAI)の核となるロジック（DOM非依存）。
+  verify.mjs から Node でも直接テストする。
   ※当初 React での実装を想定していたが、このプロジェクトのビルド無し方針
   （games/geometry-dash と同じ「外部ライブラリなし・ファイルを直接開くだけ」）に合わせ、
-  Canvas + Vanilla JS で実装した。core.js / score.js / rhythm.js 自体はフレームワーク
-  非依存の純関数なので、後日 React/Unity/Godot 等に載せ替える場合もロジックはそのまま
-  再利用できる。
+  Canvas + Vanilla JS で実装した。core.js / score.js / rhythm.js / ai.js 自体はフレーム
+  ワーク非依存の純関数なので、後日 React/Unity/Godot 等に載せ替える場合もロジックは
+  そのまま再利用できる。
 -->
 <script src="./core.js"></script>
 <script src="./score.js"></script>
 <script src="./rhythm.js"></script>
+<script src="./ai.js"></script>
 <script>
 (function () {
   "use strict";
@@ -232,6 +262,7 @@
     nextBeatTime,
     syncAccuracy,
   } = window.GrazeRhythm;
+  const { decideMove: decideAiMove } = window.GrazeAI;
 
   const WIDTH = 720;
   const HEIGHT = 480;
@@ -267,6 +298,7 @@
   const bpmInput = document.getElementById("bpm-input");
   const musicBtn = document.getElementById("music-btn");
   const beatPulseEl = document.getElementById("beat-pulse");
+  const heroModeSelect = document.getElementById("hero-mode-select");
 
   let walls = []; // {createdAt, bullets, pushDir, regularity}
   let drawingPoints = null; // 現在ドロー中のスワイプ点列
@@ -566,10 +598,23 @@
     updateBeatPulse(ts);
 
     let dx = 0, dy = 0;
-    if (keys["arrowleft"] || keys["a"]) dx -= 1;
-    if (keys["arrowright"] || keys["d"]) dx += 1;
-    if (keys["arrowup"] || keys["w"]) dy -= 1;
-    if (keys["arrowdown"] || keys["s"]) dy += 1;
+    const heroMode = heroModeSelect.value;
+    if (heroMode === "manual") {
+      if (keys["arrowleft"] || keys["a"]) dx -= 1;
+      if (keys["arrowright"] || keys["d"]) dx += 1;
+      if (keys["arrowup"] || keys["w"]) dy -= 1;
+      if (keys["arrowdown"] || keys["s"]) dy += 1;
+    } else {
+      const allBullets = [];
+      walls.forEach((wall) => allBullets.push(...wall.bullets));
+      const dir = decideAiMove(heroMode, hero, allBullets, {
+        width: WIDTH,
+        height: HEIGHT,
+        heroRadius: HERO_RADIUS,
+      });
+      dx = dir.x;
+      dy = dir.y;
+    }
     if (dx !== 0 || dy !== 0) {
       const len = Math.hypot(dx, dy) || 1;
       hero = {

@@ -18,6 +18,7 @@ export default defineConfig({
       "graze-and-grace-core/core.js",
       "graze-and-grace-core/score.js",
       "graze-and-grace-core/rhythm.js",
+      "graze-and-grace-core/ai.js",
     ],
   },
 })

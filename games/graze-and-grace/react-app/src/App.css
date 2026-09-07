@@ -67,6 +67,22 @@ button {
 button:hover { background: #262d54; }
 button:disabled { opacity: 0.4; cursor: default; }
 
+#hero-mode-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #9aa4d6;
+}
+#hero-mode-row select {
+  background: #131a30;
+  border: 1px solid #3a4380;
+  border-radius: 4px;
+  color: #e8ecff;
+  padding: 3px 8px;
+  font-size: 12.5px;
+}
+
 #shield-row {
   display: flex;
   align-items: center;

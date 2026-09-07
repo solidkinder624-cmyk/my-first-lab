@@ -14,6 +14,7 @@ const require = createRequire(import.meta.url);
 const core = require(join(here, "core.js"));
 const score = require(join(here, "score.js"));
 const rhythm = require(join(here, "rhythm.js"));
+const ai = require(join(here, "ai.js"));
 
 let failures = 0;
 function check(name, cond) {
@@ -347,6 +348,92 @@ function approxEqual(a, b, eps = 1e-6) {
   );
   check("グレース内訳にsyncが含まれる", typeof withoutSync.grace.sync === "number");
   check("シンクロ良好だとGrace合計が上がる", withGoodSync.grace.total > withoutSync.grace.total);
+}
+
+// --- ai.js: ソロモードのAI勇者 ---
+
+function makeBullet(overrides) {
+  return Object.assign(
+    { id: 0, x: 0, y: 0, vx: 0, vy: 0, radius: 6, visible: true, launched: true },
+    overrides || {}
+  );
+}
+
+// 25. ビギナー型: 近い弾からは遠ざかり、遠い弾には反応しない
+{
+  const hero = { x: 100, y: 100 };
+  const closeBullet = makeBullet({ x: 120, y: 100 }); // heroの右20px
+  const away = ai.decideMove(ai.TYPES.BEGINNER, hero, [closeBullet], { dangerRadius: 90 });
+  check(`近い弾からは-x方向へ逃げる (got ${away.x.toFixed(2)},${away.y.toFixed(2)})`, away.x < -0.5);
+
+  const farBullet = makeBullet({ x: 100 + 500, y: 100 });
+  const idle = ai.decideMove(ai.TYPES.BEGINNER, hero, [farBullet], { dangerRadius: 90 });
+  check("遠い弾には反応しない(静止)", idle.x === 0 && idle.y === 0);
+
+  const none = ai.decideMove(ai.TYPES.BEGINNER, hero, [], { dangerRadius: 90 });
+  check("弾が無ければ静止", none.x === 0 && none.y === 0);
+}
+
+// 26. スコアラー型: 遠ければ近づき、被弾しそうなら退避し、ちょうど良い距離では静止する
+{
+  const hero = { x: 100, y: 100 };
+  const opts = { heroRadius: 9, grazeMargin: 6, safetyMargin: 2 };
+
+  const farBullet = makeBullet({ x: 300, y: 100, radius: 6 });
+  const approach = ai.decideMove(ai.TYPES.SCORER, hero, [farBullet], opts);
+  check(`遠い弾には自分から近づく (got x=${approach.x.toFixed(2)})`, approach.x > 0.5);
+
+  const closeBullet = makeBullet({ x: 110, y: 100, radius: 6 }); // 距離10 < hitMargin(17)
+  const retreat = ai.decideMove(ai.TYPES.SCORER, hero, [closeBullet], opts);
+  check(`被弾しそうなら退避する (got x=${retreat.x.toFixed(2)})`, retreat.x < -0.5);
+
+  const targetDist = opts.heroRadius + 6 + opts.grazeMargin; // 21
+  const perfectBullet = makeBullet({ x: 100 + targetDist, y: 100, radius: 6 });
+  const hold = ai.decideMove(ai.TYPES.SCORER, hero, [perfectBullet], opts);
+  check("ちょうど良い距離では静止してカスリを維持する", hold.x === 0 && hold.y === 0);
+
+  const none = ai.decideMove(ai.TYPES.SCORER, hero, [], opts);
+  check("弾が無ければ静止", none.x === 0 && none.y === 0);
+}
+
+// 27. TAS型: 左右から挟まれたら水平方向ではなく垂直方向へ回避する
+{
+  const hero = { x: 300, y: 240 };
+  const bulletsPincer = [
+    makeBullet({ x: hero.x - 150, y: hero.y, vx: 220, vy: 0 }), // 左から接近
+    makeBullet({ x: hero.x + 150, y: hero.y, vx: -220, vy: 0 }), // 右から接近
+  ];
+  const dodge = ai.decideMove(ai.TYPES.TAS, hero, bulletsPincer, {
+    width: 720,
+    height: 480,
+    heroRadius: 9,
+  });
+  check(
+    `左右から挟まれると上下方向へ回避する (got x=${dodge.x.toFixed(2)}, y=${dodge.y.toFixed(2)})`,
+    Math.abs(dodge.y) > Math.abs(dodge.x)
+  );
+
+  const none = ai.decideMove(ai.TYPES.TAS, hero, [], { width: 720, height: 480, heroRadius: 9 });
+  check("TAS型も弾が無ければ静止", none.x === 0 && none.y === 0);
+}
+
+// 28. 未知のAIタイプはエラーになる(呼び出し側のtypoにすぐ気づけるように)
+{
+  let threw = false;
+  try {
+    ai.decideMove("nonexistent", { x: 0, y: 0 }, [], {});
+  } catch (e) {
+    threw = true;
+  }
+  check("未知のAIタイプはエラーを投げる", threw);
+}
+
+// 29. 表示ラベルが3種すべて揃っている
+{
+  check(
+    "TYPE_LABELS に3種類の表示名が揃っている",
+    ai.TYPE_LABELS.beginner && ai.TYPE_LABELS.scorer && ai.TYPE_LABELS.tas
+  );
 }
 
 console.log("");
