@@ -30,6 +30,11 @@ from .errors import AuthError, TransientError
 
 Article = dict[str, Any]
 
+# Some publishers 429/403 the default urllib User-Agent as bot traffic; a
+# descriptive one that names the project is standard practice for a feed
+# reader and avoids that without doing anything evasive.
+_USER_AGENT = "daily-ai-news-agent/1.0 (+https://github.com/solidkinder624-cmyk/my-first-lab)"
+
 
 def _demo_articles() -> list[Article]:
     now = datetime.now(timezone.utc)
@@ -91,15 +96,27 @@ def fetch_articles() -> list[Article]:
         return _demo_articles()
 
     articles: list[Article] = []
+    errors: list[str] = []
     for url in (u.strip() for u in source_urls.split(",")):
-        if url:
+        if not url:
+            continue
+        try:
             articles.extend(_fetch_one_source(url))
+        except TransientError as exc:
+            # One blocked/flaky source (e.g. a 429) shouldn't sink a run that
+            # has other, working sources -- best effort across sources, with
+            # the zero-articles guardrail as the real backstop.
+            errors.append(str(exc))
+
+    if not articles and errors:
+        raise TransientError("; ".join(errors))
     return articles
 
 
 def _fetch_one_source(url: str) -> list[Article]:
+    request = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
     try:
-        with urllib.request.urlopen(url, timeout=10) as resp:
+        with urllib.request.urlopen(request, timeout=10) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
     except urllib.error.URLError as exc:
         raise TransientError(f"{url}: {exc}") from exc
