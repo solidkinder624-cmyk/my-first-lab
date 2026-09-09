@@ -253,6 +253,52 @@ Roblox API 非依存の純関数で、`verify.luau` が
 
 ---
 
+## スカイキャリア (roblox/sky-carrier/)
+
+Roblox のマルチプレイ。パッドで操作する自由飛行と、貨物ターミナル間を時間内に
+運ぶ配達ミッションの2本柱で、配達で稼いだお金が機体購入・アップグレードに
+つながる ([設計図](https://claude.ai/code/artifact/375b06f3-8063-43da-9f9c-45d5a2e2ed42) を
+実装に落とし込んだもの)。3Dモデル・テクスチャ・音源アセットは一切使わず、
+Part と手続き生成だけで機体・ターミナルを組んでいる。
+
+```bash
+rokit install                                          # rojo/stylua/selene を導入
+rojo serve roblox/sky-carrier/default.project.json     # Studio の Rojo プラグインから Connect
+cd roblox/sky-carrier && luau verify.luau               # Studio 無しでロジックを検証 (116項目)
+```
+
+- 左スティックでロール/ピッチ、右スティックでヨー、R2/L2でスロットル、
+  ×でブースト、○で着陸装置、□で荷物投下
+- 練習機 / 貨物輸送機 / 曲技機の3クラス。エンジン・燃料・貨物ベイをアップグレード可能
+
+### サーバ権威 + クライアント予測
+
+`FlightModel.luau` は Roblox API 非依存の純関数で、サーバ (`FlightService`) と
+クライアント (`FlightPredictor`) がまったく同じ物理を実行する。クライアントは
+入力の瞬間にローカルで1歩進めて見た目を遅延なく追従させ、サーバから届く
+自分ぶんのスナップショットと大きくズレたときだけ静かに合わせる (簡易リコンサイル)。
+ミッションの成否は自己申告ではなく、サーバが持つ座標 (接地・着陸装置・目的地からの
+距離) だけで判定するので、クライアントを改造しても実際に届けられる範囲は増えない。
+
+### 「物理的に不可能な移動」を距離と時間から弾く
+
+`AntiCheat.luau` は打撃のクールダウンではなく移動そのものを検査する。直前の
+正規位置・時刻から `最高速度 * speedTolerance * dt + graceDistance` を超えて
+移動した申告はテレポート・速度ハックとして却下し、直前の正規状態へ巻き戻す。
+
+### Studio を開かずに回るテスト
+
+ロジックの中核 (`Config` / `FlightModel` / `Mission` / `AntiCheat`) は
+Roblox API 非依存の純関数で、`verify.luau` が「全速スロットルを続ければ離陸するか」
+「着陸装置と降下速度で Land / Crash が正しく分かれるか」「同じ入力列から必ず同じ
+結果になるか」「ミッションの報酬が計算式どおりか」「テレポート級の移動申告を
+弾けるか」など116項目を検査する。`.github/workflows/sky-carrier-verify.yml` が
+push ごとに実行する。
+
+詳細は `roblox/sky-carrier/README.md`。
+
+---
+
 ## GRAZE & GRACE ― スワイプ弾幕壁 プロトタイプ (games/graze-and-grace/)
 
 企画書 (`games/graze-and-grace/GAME_DESIGN.md`) の Phase 1「弾幕エンジンの基礎構築」に

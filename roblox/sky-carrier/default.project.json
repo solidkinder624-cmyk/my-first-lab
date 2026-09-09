@@ -1,0 +1,23 @@
+{
+  "name": "SkyCarrier",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "SkyCarrier": {
+        "$path": "src/shared"
+      }
+    },
+    "ServerScriptService": {
+      "SkyCarrierServer": {
+        "$path": "src/server"
+      }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "SkyCarrierClient": {
+          "$path": "src/client"
+        }
+      }
+    }
+  }
+}
