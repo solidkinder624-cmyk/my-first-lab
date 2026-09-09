@@ -106,11 +106,17 @@ function FlightModel.sanitize(raw: any): Input
 end
 
 -- 前方ベクトル (pitch/yaw から。roll は機体の見た目にのみ影響し、進行方向には影響しない)
+--
+-- 機体の見た目 (AircraftRig / CameraController) は CFrame.fromOrientation(pitch, yaw, roll)
+-- で組んでおり、そこでの LookVector は (-sin(yaw), sin(pitch), -cos(yaw)) * cos(pitch) 相当
+-- (yaw=0 で -Z、yaw=90° で -X、というRobloxの既定の回転方向)。以前の実装は
+-- (sin(yaw), sin(pitch), cos(yaw)) と符号がXZ両方とも逆で、機首の向きと実際の
+-- 進行方向が常に真逆になり後ろ向きに飛んでいるように見えるバグがあった。
 function FlightModel.forwardVector(state: State): (number, number, number)
 	local pitchRad = math.rad(state.pitch)
 	local yawRad = math.rad(state.yaw)
 	local horizontal = math.cos(pitchRad)
-	return math.sin(yawRad) * horizontal, math.sin(pitchRad), math.cos(yawRad) * horizontal
+	return -math.sin(yawRad) * horizontal, math.sin(pitchRad), -math.cos(yawRad) * horizontal
 end
 
 function FlightModel.speed(state: State): number
