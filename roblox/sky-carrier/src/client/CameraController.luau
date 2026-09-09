@@ -7,6 +7,13 @@ local Workspace = game:GetService("Workspace")
 local CHASE_OFFSET = CFrame.new(0, 6, 24) -- 機体後方・やや上から
 local COCKPIT_OFFSET = CFrame.new(0, 1.5, -4)
 
+local BIND_NAME = "SkyCarrierCamera"
+-- 既定のカメラスクリプトは Enum.RenderPriority.Camera で毎フレーム
+-- CameraType を Custom に戻してくる。start() で一度 Scriptable にするだけでは
+-- 次のフレームで即座に上書きされてしまう(=機体を映せない)ので、それより
+-- 後の優先度で毎フレーム Scriptable を再宣言し続けて確実に勝つ。
+local RENDER_PRIORITY = Enum.RenderPriority.Camera.Value + 1
+
 local CameraController = {}
 CameraController.__index = CameraController
 
@@ -36,21 +43,19 @@ function CameraController:start()
 		end)
 	)
 
-	table.insert(
-		self.connections,
-		RunService.RenderStepped:Connect(function()
-			local state = self.predictor.state
-			local body = CFrame.new(state.x, state.y, state.z)
-				* CFrame.fromOrientation(math.rad(state.pitch), math.rad(state.yaw), math.rad(state.roll))
-			local offset = if self.mode == "Chase" then CHASE_OFFSET else COCKPIT_OFFSET
-			local desired = body * offset
-			if self.mode == "Chase" then
-				camera.CFrame = CFrame.new(desired.Position, body.Position)
-			else
-				camera.CFrame = desired
-			end
-		end)
-	)
+	RunService:BindToRenderStep(BIND_NAME, RENDER_PRIORITY, function()
+		camera.CameraType = Enum.CameraType.Scriptable -- 既定スクリプトの上書きに毎フレーム勝つ
+		local state = self.predictor.state
+		local body = CFrame.new(state.x, state.y, state.z)
+			* CFrame.fromOrientation(math.rad(state.pitch), math.rad(state.yaw), math.rad(state.roll))
+		local offset = if self.mode == "Chase" then CHASE_OFFSET else COCKPIT_OFFSET
+		local desired = body * offset
+		if self.mode == "Chase" then
+			camera.CFrame = CFrame.new(desired.Position, body.Position)
+		else
+			camera.CFrame = desired
+		end
+	end)
 end
 
 function CameraController:stop()
@@ -58,6 +63,9 @@ function CameraController:stop()
 		connection:Disconnect()
 	end
 	self.connections = {}
+	pcall(function()
+		RunService:UnbindFromRenderStep(BIND_NAME)
+	end)
 end
 
 return CameraController

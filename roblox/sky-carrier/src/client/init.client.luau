@@ -31,6 +31,36 @@ local SoundController = require(script.SoundController)
 local player = Players.LocalPlayer
 local remotes = Net.client()
 
+-- このゲームに「機体に乗り込む」操作は無い。常にプレイヤー = 操縦席で、
+-- 入力は最初から AircraftRig を直接動かす。ただし既定のアバター(Humanoid)を
+-- そのままにすると普通にスポーンして歩き回れてしまい紛らわしいので、
+-- 操作不能・不可視にして固定する(カメラを機体に固定する処理は
+-- CameraController 側で、既定カメラより後の優先度で毎フレーム上書きして行う)。
+local function freezeAndHideCharacter(character: Model)
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		humanoid.PlatformStand = true -- 既定の歩行・ジャンプを止める
+	end
+	for _, part in character:GetDescendants() do
+		if part:IsA("BasePart") then
+			part.Anchored = true -- 重力で落ちたり地形に引っかかったりしないよう固定
+			part.Transparency = 1
+			part.CanCollide = false
+			part.CanTouch = false
+		elseif part:IsA("Decal") then
+			part.Transparency = 1
+		end
+	end
+end
+
+-- Controls(歩行)側は PlayerModule 経由で無効化する手もあるが、この Place には
+-- PlayerModule が用意されておらず WaitForChild が無限待ちになるため使わない。
+-- 歩行・ジャンプの抑止は freezeAndHideCharacter の PlatformStand だけで十分。
+if player.Character then
+	freezeAndHideCharacter(player.Character)
+end
+player.CharacterAdded:Connect(freezeAndHideCharacter)
+
 -- サーバ側の初期スポーン地点 (中央空港) と、既定機体のステータスをそのまま使う。
 -- 実際の機体・アップグレードはサーバの PlayerDataService が権威を持つので、
 -- ここではズレたら reconcile で合わせるだけの初期値として扱う。
