@@ -22,7 +22,11 @@ local AircraftRig = require(script.AircraftRig)
 local RemotePlayers = require(script.RemotePlayers)
 local CameraController = require(script.CameraController)
 local MissionController = require(script.MissionController)
+local TerminalController = require(script.TerminalController)
+local Shop = require(script.Shop)
 local Hud = require(script.Hud)
+local WeatherController = require(script.WeatherController)
+local SoundController = require(script.SoundController)
 
 local player = Players.LocalPlayer
 local remotes = Net.client()
@@ -41,9 +45,14 @@ local remotePlayers = RemotePlayers.new(Workspace)
 local camera = CameraController.new(predictor)
 local input = InputController.new(remotes)
 local missions = MissionController.new(remotes)
+local terminals = TerminalController.new(missions)
+local shop = Shop.new(remotes)
 local hud = Hud.new()
+local weatherController = WeatherController.new()
+local sound = SoundController.new()
 
 predictor.onEvents = function(events)
+	sound:onFlightEvents(events)
 	if table.find(events, "Land") then
 		hud:flash("着陸")
 	elseif table.find(events, "Crash") then
@@ -69,6 +78,7 @@ input.onInput = function(rawInput)
 end
 missions.onResult = function(success, reason, payout)
 	if success then
+		sound:onDeliverySuccess()
 		hud:flash(string.format("配達成功！ +%d", math.floor(payout or 0)))
 	elseif reason == "not_at_destination" then
 		hud:flash("まだ目的地に到着していません")
@@ -76,11 +86,33 @@ missions.onResult = function(success, reason, payout)
 		hud:flash("時間切れ...")
 	end
 end
+missions.onAcceptResult = function(ok, reason)
+	if ok then
+		hud:flash("ミッションを受注しました")
+	elseif reason == "no_offer_here" then
+		hud:flash("ここから出るミッションは今ありません")
+	elseif reason == "max_active" then
+		hud:flash("これ以上は同時受注できません (貨物ベイを強化)")
+	end
+end
 
 predictor:start()
 camera:start()
 input:start()
 input:setEnabled(true)
+terminals:start()
+shop:start()
+weatherController:start()
+sound:start()
+
+remotes.ProfileUpdate.OnClientEvent:Connect(function(profile)
+	shop:applyProfile(profile)
+	hud:updateMoney(profile)
+end)
+
+remotes.WeatherUpdate.OnClientEvent:Connect(function(weatherName)
+	weatherController:apply(weatherName)
+end)
 
 remotes.BroadcastFlightState.OnClientEvent:Connect(function(payload)
 	remotePlayers:onSnapshot(payload, player.UserId)

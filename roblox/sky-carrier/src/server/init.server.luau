@@ -15,21 +15,32 @@ local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
 local WorldBuilder = require(script.WorldBuilder)
+local TerrainBuilder = require(script.TerrainBuilder)
 local PlayerDataService = require(script.PlayerDataService)
 local FlightService = require(script.FlightService)
 local MissionService = require(script.MissionService)
+local WeatherService = require(script.WeatherService)
 
 local remotes = Net.server()
 local world = WorldBuilder.build(workspace, Config)
+TerrainBuilder.build(workspace, Config)
 local playerData = PlayerDataService.new()
 local flight = FlightService.new(remotes, playerData, world)
 local missions = MissionService.new(remotes, playerData, flight, world.terminals)
+local weather = WeatherService.new(remotes, Config)
+
+-- ── 所持金・所有機体・アップグレードの通知 (ショップUI用) ─
+local function pushProfile(player: Player)
+	remotes.ProfileUpdate:FireClient(player, playerData:get(player))
+end
 
 -- ── プレイヤーの出入り ──────────────────────────────────
 local function onPlayerAdded(player: Player)
 	playerData:load(player)
 	flight:spawnFor(player)
 	missions:onPlayerAdded(player)
+	pushProfile(player)
+	weather:sendTo(player)
 end
 
 Players.PlayerAdded:Connect(onPlayerAdded)
@@ -75,7 +86,35 @@ end
 -- ── 荷物受け渡し (RemoteFunction) ────────────────────────
 remotes.RequestDelivery.OnServerInvoke = function(player, missionId)
 	local success, reason, payout = missions:deliver(player, missionId)
+	if success then
+		pushProfile(player) -- 支払いで所持金が変わったのでショップUIへ反映する
+	end
 	return { success = success, reason = reason, payout = payout }
+end
+
+-- ── 機体購入・乗り換え・アップグレード (RemoteFunction) ──
+remotes.RequestPurchaseAircraft.OnServerInvoke = function(player, aircraftName)
+	local ok, reason = playerData:purchaseAircraft(player, aircraftName)
+	if ok then
+		pushProfile(player)
+	end
+	return { ok = ok, reason = reason }
+end
+
+remotes.RequestSelectAircraft.OnServerInvoke = function(player, aircraftName)
+	local ok, reason = playerData:selectAircraft(player, aircraftName)
+	if ok then
+		pushProfile(player)
+	end
+	return { ok = ok, reason = reason }
+end
+
+remotes.RequestPurchaseUpgrade.OnServerInvoke = function(player, upgradeKind)
+	local ok, reason = playerData:purchaseUpgrade(player, upgradeKind)
+	if ok then
+		pushProfile(player)
+	end
+	return { ok = ok, reason = reason }
 end
 
 -- ── メインループ ────────────────────────────────────────
@@ -83,13 +122,21 @@ RunService.Heartbeat:Connect(function()
 	flight:broadcastStep(os.clock())
 end)
 
--- ── 定期的な自動保存とミッション補充 ─────────────────────
+-- ── 定期的な自動保存 ────────────────────────────────────
 task.spawn(function()
 	while true do
 		task.wait(120)
 		for _, player in Players:GetPlayers() do
 			playerData:save(player)
 		end
+	end
+end)
+
+-- ── 天候の切り替わり監視 ────────────────────────────────
+task.spawn(function()
+	while true do
+		weather:step()
+		task.wait(10)
 	end
 end)
 

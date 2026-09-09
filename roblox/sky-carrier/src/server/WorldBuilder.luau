@@ -41,6 +41,19 @@ local function makePad(spec, groundHeight: number, folder: Instance)
 	text.Text = spec.name
 	text.Parent = label
 
+	-- 07/開発ロードマップ P3: ターミナルのProximityPrompt。□ (荷物投下) は
+	-- 届け先での決定に使っているので、受注はまだ配線していない R1 に割り当てる。
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "AcceptMissionPrompt"
+	prompt.ActionText = "ミッション受注"
+	prompt.ObjectText = spec.name
+	prompt.HoldDuration = 0.3
+	prompt.MaxActivationDistance = 40
+	prompt.RequiresLineOfSight = false
+	prompt.GamepadKeyCode = Enum.KeyCode.ButtonR1
+	prompt:SetAttribute("TerminalId", spec.id)
+	prompt.Parent = part
+
 	return part
 end
 

@@ -11,6 +11,47 @@ Config.world = {
 	killY = -400, -- ここより下に落ちたら中央空港へ強制帰還
 }
 
+-- ── 自由飛行エリア (Terrain.luau が手続き生成する地形の配置) ──
+-- 05/ワールド設計の「山岳/海洋/都市」に対応。中心座標はターミナルの外側に
+-- 置き、minDistance ぶんは何も生成しないので、着陸帯のすぐ隣が山になる
+-- ような事故は起きない。
+Config.world.zones = {
+	Mountain = {
+		centerX = -600,
+		centerZ = -1800,
+		radius = 500,
+		minDistance = 80,
+		count = 22,
+		minHeight = 70,
+		maxHeight = 420,
+		minRadius = 22,
+		maxRadius = 58,
+	},
+	Ocean = {
+		centerX = 1900,
+		centerZ = 1300,
+		radius = 550,
+		waterLevel = -6, -- 海面の高さ (studs)。groundHeight よりわずかに低い
+		islandCount = 6,
+		minDistance = 60,
+		minHeight = 14,
+		maxHeight = 46,
+		minRadius = 20,
+		maxRadius = 48,
+	},
+	Urban = {
+		centerX = -1300,
+		centerZ = 1750,
+		radius = 480,
+		minDistance = 60,
+		buildingCount = 46,
+		minHeight = 24,
+		maxHeight = 220,
+		footprintMin = 18,
+		footprintMax = 34,
+	},
+}
+
 -- ── 機体クラス ──────────────────────────────────────────
 -- maxSpeed/accel: studs/s, studs/s^2。turnRate: 度/秒 (ピッチ・ロール・ヨー共通の基準値)
 -- price は所持金 (お金の単位)。Trainer は初期所持機で price = 0。
@@ -103,6 +144,29 @@ Config.anticheat = {
 -- ── サーバー配信 ────────────────────────────────────────
 Config.broadcast = {
 	rateHz = 12, -- 他プレイヤーへの位置ブロードキャスト頻度
+}
+
+-- ── 天候 (Weather.luau が使う。演出の下地) ────────────────
+-- Weather.at(serverSeconds, cfg) が周期ごとに決定的に1つ選ぶ。値そのものは
+-- Lighting のパラメータで、クライアント側 (WeatherController) が適用する。
+Config.weather = {
+	periodSeconds = 240, -- この秒数ごとに天候が切り替わる
+	order = { "Clear", "Cloudy", "Storm" },
+	presets = {
+		Clear = { fogEnd = 100000, fogColor = { 170, 220, 255 }, brightness = 2.2, ambient = { 80, 90, 100 } },
+		Cloudy = { fogEnd = 6000, fogColor = { 180, 190, 200 }, brightness = 1.6, ambient = { 70, 75, 85 } },
+		Storm = { fogEnd = 2200, fogColor = { 90, 100, 115 }, brightness = 0.9, ambient = { 40, 45, 55 } },
+	},
+}
+
+-- ── 音 (演出の下地) ─────────────────────────────────────
+-- domino-crash と同じく外部アセット0本の方針。rbxassetid:// を入れれば鳴る。
+Config.sound = {
+	boost = "",
+	land = "",
+	crash = "",
+	deliverySuccess = "",
+	ambientWind = "",
 }
 
 return Config

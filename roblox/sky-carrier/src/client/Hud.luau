@@ -39,6 +39,7 @@ function Hud.new()
 		speed = label(gui, UDim2.new(0, 24, 1, -76), UDim2.new(0, 260, 0, 34), 26),
 		fuel = label(gui, UDim2.new(0, 24, 1, -42), UDim2.new(0, 260, 0, 30), 20),
 		gear = label(gui, UDim2.new(1, -220, 1, -42), UDim2.new(0, 196, 0, 30), 20, true),
+		money = label(gui, UDim2.new(1, -220, 1, -76), UDim2.new(0, 196, 0, 30), 20, true),
 		mission = label(gui, UDim2.new(0.5, -320, 0, 16), UDim2.new(0, 640, 0, 46), 22),
 		message = label(gui, UDim2.new(0.5, -320, 0, 68), UDim2.new(0, 640, 0, 30), 20),
 	}, Hud)
@@ -56,6 +57,10 @@ function Hud:updateFlight(state)
 	self.fuel.Text = string.format("燃料  %d", fuelPercent)
 	self.gear.Text = if state.gearDown then "着陸装置: 展開" else "着陸装置: 格納"
 	self.gear.TextColor3 = if state.gearDown then Color3.fromRGB(150, 220, 150) else Color3.fromRGB(220, 150, 120)
+end
+
+function Hud:updateMoney(profile)
+	self.money.Text = string.format("所持金 %d", math.floor(profile.money))
 end
 
 function Hud:updateMission(missionController)

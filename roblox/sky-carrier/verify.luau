@@ -10,12 +10,16 @@
 --   * 同じ入力列からは必ず同じ結果が出ること (クライアント予測とサーバ権威が一致する前提)
 --   * ミッションの報酬・制限時間の計算式が仕様どおりであること
 --   * 不正な移動申告 (テレポート・フラッド) を弾けること
+--   * 自由飛行エリアの地形が決定的に生成され、指定した範囲に収まること
+--   * 天候が周期どおりに切り替わり、連続で同じ天候にならないこと
 -- を CI で担保するのが目的。
 
 local Config = require("./src/shared/Config")
 local FlightModel = require("./src/shared/FlightModel")
 local Mission = require("./src/shared/Mission")
 local AntiCheat = require("./src/shared/AntiCheat")
+local Terrain = require("./src/shared/Terrain")
+local Weather = require("./src/shared/Weather")
 
 local failures = 0
 local checks = 0
@@ -302,7 +306,97 @@ do
 	check(allOk, "妥当な速度で連続移動しても弾かれない")
 end
 
--- ── 6. 設定値の整合性 ────────────────────────────────────
+-- ── 6. 自由飛行エリアの地形生成 ──────────────────────────
+section("地形生成 (山岳・海洋・都市)")
+do
+	for kind, zoneCfg in Config.world.zones do
+		local a = Terrain.generate(kind, 42, zoneCfg)
+		local b = Terrain.generate(kind, 42, zoneCfg)
+		check(#a == #b, string.format("%s: 同じシードからは同じ個数の地形が生成される", kind))
+		local identical = true
+		for i, fa in a do
+			local fb = b[i]
+			if fa.cx ~= fb.cx or fa.cy ~= fb.cy or fa.cz ~= fb.cz or fa.sx ~= fb.sx or fa.sy ~= fb.sy or fa.sz ~= fb.sz then
+				identical = false
+			end
+		end
+		check(identical, string.format("%s: 同じシードからは完全に同じ配置が生成される", kind))
+
+		local withinBounds = true
+		local maxDist = 0
+		for _, feature in a do
+			local dx = feature.cx - zoneCfg.centerX
+			local dz = feature.cz - zoneCfg.centerZ
+			local dist = math.sqrt(dx * dx + dz * dz)
+			maxDist = math.max(maxDist, dist)
+			if dist > zoneCfg.radius + 1e-6 then
+				withinBounds = false
+			end
+		end
+		check(
+			withinBounds,
+			string.format("%s: 地形はすべてゾーン半径の内側に収まる", kind),
+			string.format("最大 %.1f / 半径 %.1f", maxDist, zoneCfg.radius)
+		)
+
+		local maxHeight = 0
+		for _, feature in a do
+			maxHeight = math.max(maxHeight, feature.cy + feature.sy / 2)
+		end
+		check(
+			maxHeight < Config.world.ceiling,
+			string.format("%s: 地形の最高点が高度上限を超えない", kind),
+			string.format("%.1f < %d", maxHeight, Config.world.ceiling)
+		)
+	end
+
+	-- 都市エリアはビルが1棟も生成されないことがない (確率で間引くため、密度が
+	-- 低すぎると0件になりうる。生成式の place 確率 0.6 が機能しているかの検査)
+	local urbanFeatures = Terrain.generate("Urban", 42, Config.world.zones.Urban)
+	check(#urbanFeatures > 10, "都市エリア: ビルが実用的な密度で生成される", string.format("%d棟", #urbanFeatures))
+end
+
+-- ── 7. 天候の周期 ────────────────────────────────────────
+section("天候の周期")
+do
+	local cfg = Config.weather
+
+	check(Weather.at(0, cfg) == cfg.order[1], "サーバ起動直後は最初の天候から始まる")
+
+	local previous = Weather.at(0, cfg)
+	local everyEntryUsed = {}
+	local neverRepeats = true
+	for cycle = 1, 12 do
+		local current = Weather.at(cycle * cfg.periodSeconds, cfg)
+		everyEntryUsed[current] = true
+		if current == previous then
+			neverRepeats = false
+		end
+		previous = current
+	end
+	check(neverRepeats, "連続する周期で同じ天候が2回続かない")
+
+	local usedCount = 0
+	for _ in everyEntryUsed do
+		usedCount += 1
+	end
+	check(usedCount > 1, "複数の天候が実際に選ばれる (常に同じ天候に偏らない)")
+
+	-- 同じ周期の間はずっと同じ天候 (途中から見ても・複数のクライアントで見ても一致する)
+	local within1 = Weather.at(3 * cfg.periodSeconds + 1, cfg)
+	local within2 = Weather.at(3 * cfg.periodSeconds + cfg.periodSeconds * 0.9, cfg)
+	check(within1 == within2, "同じ周期の間は天候が変わらない")
+
+	-- 決定性: 同じ時刻からは必ず同じ天候
+	check(Weather.at(50 * cfg.periodSeconds + 5, cfg) == Weather.at(50 * cfg.periodSeconds + 5, cfg), "同じ時刻からは必ず同じ天候になる")
+
+	for name, preset in cfg.presets do
+		check(preset.fogEnd > 0, string.format("%s: 霧の距離は正の値", name))
+		check(preset.brightness > 0, string.format("%s: 明るさは正の値", name))
+	end
+end
+
+-- ── 8. 設定値の整合性 ────────────────────────────────────
 section("設定値の整合性")
 do
 	check(Config.world.ceiling > Config.flight.groundHeight, "高度上限は地上より高い")
@@ -337,6 +431,24 @@ do
 	check(Config.flight.boost.multiplier > 1, "ブースト倍率は1より大きい")
 	check(Config.flight.boost.cooldown > Config.flight.boost.duration, "ブーストのクールダウンは持続時間より長い")
 	check(Config.broadcast.rateHz > 0 and Config.broadcast.rateHz <= Config.gamepad.inputHz, "配信頻度は入力送信頻度以下")
+
+	for kind, zoneCfg in Config.world.zones do
+		check(zoneCfg.radius > 0, string.format("ゾーン %s: 半径は正の値", kind))
+		check(
+			zoneCfg.minDistance == nil or zoneCfg.minDistance < zoneCfg.radius,
+			string.format("ゾーン %s: 除外半径がゾーン半径より小さい (何も生成されない事故を防ぐ)", kind)
+		)
+	end
+	check(Config.world.zones.Mountain.count > 0, "山岳エリア: 山の数は正の値")
+	check(Config.world.zones.Ocean.islandCount > 0, "海洋エリア: 島の数は正の値")
+	check(Config.world.zones.Ocean.waterLevel < Config.flight.groundHeight, "海面は地上判定高度より低い")
+	check(Config.world.zones.Urban.buildingCount > 0, "都市エリア: ビル数は正の値")
+
+	check(Config.weather.periodSeconds > 0, "天候の周期は正の値")
+	check(#Config.weather.order >= 2, "天候は2種類以上ある (連続で同じにならない判定が成立する)")
+	for _, name in Config.weather.order do
+		check(Config.weather.presets[name] ~= nil, string.format("天候 %s のプリセットが定義されている", name))
+	end
 end
 
 -- ── 結果 ──────────────────────────────────────────────
