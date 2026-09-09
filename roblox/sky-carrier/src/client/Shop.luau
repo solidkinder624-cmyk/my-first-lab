@@ -1,7 +1,7 @@
 -- 07/開発ロードマップ P4: 機体ショップ + アップグレードUI。
--- タッチパッド (ButtonSelect) で開閉する。設計図ではタッチパッドはミニマップ用に
--- 割り当てられていたが、ミニマップ自体は未実装 (README の既知の割り切り参照) なので、
--- 経済まわりのUIをここに割り当てている。
+-- タッチパッド (ButtonSelect) / キーボードの B で開閉する。設計図ではタッチパッドは
+-- ミニマップ用に割り当てられていたが、ミニマップ自体は未実装 (README の既知の割り切り
+-- 参照) なので、経済まわりのUIをここに割り当てている。
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -167,7 +167,11 @@ function Shop:start()
 			if processed then
 				return
 			end
-			if input.UserInputType == Enum.UserInputType.Gamepad1 and input.KeyCode == Enum.KeyCode.ButtonSelect then
+			local isGamepadToggle = input.UserInputType == Enum.UserInputType.Gamepad1
+				and input.KeyCode == Enum.KeyCode.ButtonSelect
+			local isKeyboardToggle = input.UserInputType == Enum.UserInputType.Keyboard
+				and input.KeyCode == Enum.KeyCode.B
+			if isGamepadToggle or isKeyboardToggle then
 				self:toggle()
 			end
 		end)

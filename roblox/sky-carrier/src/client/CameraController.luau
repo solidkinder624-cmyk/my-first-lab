@@ -1,4 +1,4 @@
--- 追従カメラ。△ (ButtonY) でチェイス視点とコックピット視点を切り替える。
+-- 追従カメラ。△ (ButtonY) / キーボードの C でチェイス視点とコックピット視点を切り替える。
 
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -24,8 +24,13 @@ function CameraController:start()
 
 	table.insert(
 		self.connections,
-		UserInputService.InputBegan:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.Gamepad1 and input.KeyCode == Enum.KeyCode.ButtonY then
+		UserInputService.InputBegan:Connect(function(input, gameProcessed)
+			local isGamepadToggle = input.UserInputType == Enum.UserInputType.Gamepad1
+				and input.KeyCode == Enum.KeyCode.ButtonY
+			local isKeyboardToggle = not gameProcessed
+				and input.UserInputType == Enum.UserInputType.Keyboard
+				and input.KeyCode == Enum.KeyCode.C
+			if isGamepadToggle or isKeyboardToggle then
 				self.mode = if self.mode == "Chase" then "Cockpit" else "Chase"
 			end
 		end)
