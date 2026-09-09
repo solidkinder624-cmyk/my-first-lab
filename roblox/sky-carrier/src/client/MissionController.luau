@@ -1,6 +1,7 @@
 -- ミッションの受注・届け先追跡。判定そのものはサーバの MissionService が
--- 座標だけを見て行うので、ここは「提示された一覧を覚えておいて、□ が押されたら
--- 一番上のミッションの受け渡しをサーバに申告する」だけの薄いラッパー。
+-- 座標だけを見て行うので、ここは「提示された一覧を覚えておいて、ターミナルの
+-- ProximityPrompt が押されたら受注、□ が押されたら受け渡しをサーバに申告する」
+-- だけの薄いラッパー。
 
 local MissionController = {}
 MissionController.__index = MissionController
@@ -11,23 +12,39 @@ function MissionController.new(remotes)
 		offers = {},
 		active = {},
 		onResult = nil :: ((boolean, string, number?) -> ())?,
+		onAcceptResult = nil :: ((boolean, string) -> ())?,
 	}, MissionController)
 
 	remotes.MissionUpdate.OnClientEvent:Connect(function(payload)
 		self.offers = payload.offers or {}
 		self.active = payload.active or {}
-		-- 手が空いていれば自動的に一番上の提示を受注する (簡易な受注UIの代わり)
-		if #self.active == 0 and #self.offers > 0 then
-			self:accept(self.offers[1].id)
-		end
 	end)
 
 	return self
 end
 
-function MissionController:accept(missionId: string)
+-- ターミナルの ProximityPrompt から呼ばれる。そのターミナル発の提示のうち
+-- 一番早く生成されたもの (offers はサーバが index 昇順で積む) を受注する。
+function MissionController:acceptFromTerminal(terminalId: string)
+	local target = nil
+	for _, offer in self.offers do
+		if offer.originId == terminalId then
+			target = offer
+			break
+		end
+	end
+	if not target then
+		if self.onAcceptResult then
+			self.onAcceptResult(false, "no_offer_here")
+		end
+		return
+	end
+
 	task.spawn(function()
-		self.remotes.RequestAcceptMission:InvokeServer(missionId)
+		local result = self.remotes.RequestAcceptMission:InvokeServer(target.id)
+		if self.onAcceptResult then
+			self.onAcceptResult(result.ok, result.reason)
+		end
 	end)
 end
 

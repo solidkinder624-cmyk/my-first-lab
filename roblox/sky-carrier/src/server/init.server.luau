@@ -25,11 +25,17 @@ local playerData = PlayerDataService.new()
 local flight = FlightService.new(remotes, playerData, world)
 local missions = MissionService.new(remotes, playerData, flight, world.terminals)
 
+-- ── 所持金・所有機体・アップグレードの通知 (ショップUI用) ─
+local function pushProfile(player: Player)
+	remotes.ProfileUpdate:FireClient(player, playerData:get(player))
+end
+
 -- ── プレイヤーの出入り ──────────────────────────────────
 local function onPlayerAdded(player: Player)
 	playerData:load(player)
 	flight:spawnFor(player)
 	missions:onPlayerAdded(player)
+	pushProfile(player)
 end
 
 Players.PlayerAdded:Connect(onPlayerAdded)
@@ -75,7 +81,35 @@ end
 -- ── 荷物受け渡し (RemoteFunction) ────────────────────────
 remotes.RequestDelivery.OnServerInvoke = function(player, missionId)
 	local success, reason, payout = missions:deliver(player, missionId)
+	if success then
+		pushProfile(player) -- 支払いで所持金が変わったのでショップUIへ反映する
+	end
 	return { success = success, reason = reason, payout = payout }
+end
+
+-- ── 機体購入・乗り換え・アップグレード (RemoteFunction) ──
+remotes.RequestPurchaseAircraft.OnServerInvoke = function(player, aircraftName)
+	local ok, reason = playerData:purchaseAircraft(player, aircraftName)
+	if ok then
+		pushProfile(player)
+	end
+	return { ok = ok, reason = reason }
+end
+
+remotes.RequestSelectAircraft.OnServerInvoke = function(player, aircraftName)
+	local ok, reason = playerData:selectAircraft(player, aircraftName)
+	if ok then
+		pushProfile(player)
+	end
+	return { ok = ok, reason = reason }
+end
+
+remotes.RequestPurchaseUpgrade.OnServerInvoke = function(player, upgradeKind)
+	local ok, reason = playerData:purchaseUpgrade(player, upgradeKind)
+	if ok then
+		pushProfile(player)
+	end
+	return { ok = ok, reason = reason }
 end
 
 -- ── メインループ ────────────────────────────────────────
