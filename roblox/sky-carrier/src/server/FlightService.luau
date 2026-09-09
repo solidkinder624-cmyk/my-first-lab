@@ -5,7 +5,7 @@
 -- UpdateFlightInput が届くたびに1ステップ進める。物理的に不可能な結果
 -- (AntiCheat.check が reject) は直前の正規状態へ戻す。
 
-local Shared = script.Parent.Parent.Shared
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("SkyCarrier")
 local Config = require(Shared.Config)
 local FlightModel = require(Shared.FlightModel)
 local AntiCheat = require(Shared.AntiCheat)

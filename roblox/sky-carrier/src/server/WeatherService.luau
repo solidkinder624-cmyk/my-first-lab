@@ -1,7 +1,7 @@
 -- 天候の権威。Weather.luau (純ロジック) がサーバ時刻から決定的に天候名を
 -- 求め、変わった時だけ全員へ通知する (据え置きの値を毎回送らない)。
 
-local Shared = script.Parent.Parent.Shared
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("SkyCarrier")
 local Weather = require(Shared.Weather)
 
 local WeatherService = {}

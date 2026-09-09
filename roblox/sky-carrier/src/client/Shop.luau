@@ -6,7 +6,7 @@
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 
-local Shared = script.Parent.Parent.Shared
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("SkyCarrier")
 local Config = require(Shared.Config)
 
 local Shop = {}

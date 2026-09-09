@@ -4,7 +4,7 @@
 local Lighting = game:GetService("Lighting")
 local RunService = game:GetService("RunService")
 
-local Shared = script.Parent.Parent.Shared
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("SkyCarrier")
 local Config = require(Shared.Config)
 
 local TRANSITION_SECONDS = 6

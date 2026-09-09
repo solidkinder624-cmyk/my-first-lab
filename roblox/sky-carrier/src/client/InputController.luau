@@ -12,7 +12,7 @@
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 
-local Config = require(script.Parent.Parent.Shared.Config)
+local Config = require(game:GetService("ReplicatedStorage"):WaitForChild("SkyCarrier").Config)
 
 local InputController = {}
 InputController.__index = InputController

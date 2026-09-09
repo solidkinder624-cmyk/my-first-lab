@@ -6,7 +6,7 @@
 
 local DataStoreService = game:GetService("DataStoreService")
 
-local Shared = script.Parent.Parent.Shared
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("SkyCarrier")
 local Config = require(Shared.Config)
 
 local STORE_NAME = "SkyCarrier_PlayerData_v1"

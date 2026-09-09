@@ -2,7 +2,7 @@
 -- 描画すると出力間隔ぶんカクつくので、毎フレーム目標値へ指数的に近づけて
 -- 補間する (05/マルチプレイ構成の「他機体は補間表示」に対応)。
 
-local Shared = script.Parent.Parent.Shared
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("SkyCarrier")
 local Config = require(Shared.Config)
 local AircraftRig = require(script.Parent.AircraftRig)
 

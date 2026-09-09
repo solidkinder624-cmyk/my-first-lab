@@ -2,7 +2,7 @@
 -- すべて Mission.luau (純ロジック) にあり、ここは受注状態の管理と
 -- FlightService から見た「今どこにいるか」との突き合わせだけを行う。
 
-local Shared = script.Parent.Parent.Shared
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("SkyCarrier")
 local Config = require(Shared.Config)
 local Mission = require(Shared.Mission)
 

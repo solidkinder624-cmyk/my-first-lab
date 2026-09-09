@@ -3,7 +3,7 @@
 -- 山・島・ビルの見た目を作る。ゾーンの地形は毎セッション同じになるよう
 -- 固定シードを使う (対戦の公平性ではなく、みんなが同じ地図を見るため)。
 
-local Shared = script.Parent.Parent.Shared
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("SkyCarrier")
 local Terrain = require(Shared.Terrain)
 
 local TerrainBuilder = {}

@@ -4,7 +4,7 @@
 
 local Players = game:GetService("Players")
 
-local Shared = script.Parent.Parent.Shared
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("SkyCarrier")
 local FlightModel = require(Shared.FlightModel)
 
 local Hud = {}

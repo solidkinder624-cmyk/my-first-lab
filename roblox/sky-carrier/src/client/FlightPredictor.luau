@@ -7,7 +7,7 @@
 
 local RunService = game:GetService("RunService")
 
-local Shared = script.Parent.Parent.Shared
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("SkyCarrier")
 local FlightModel = require(Shared.FlightModel)
 local Config = require(Shared.Config)
 
