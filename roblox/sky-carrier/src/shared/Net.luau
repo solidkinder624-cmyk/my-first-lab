@@ -6,6 +6,7 @@
 --   BroadcastFlightState S→C  各機体の位置・速度・向き (約12Hz、最新値だけ意味を持つ)
 --   MissionUpdate        S→C  受注可能ミッション・進行状況・期限の通知
 --   ProfileUpdate         S→C  所持金・所有機体・アップグレードレベルの通知 (ショップUI用)
+--   WeatherUpdate          S→C  現在の天候名の通知 (演出の下地)
 --   RequestTakeoff        C→S→C  離陸許可判定 (RemoteFunction)
 --   RequestAcceptMission   C→S→C  提示ミッションの受注 (RemoteFunction)
 --   RequestDelivery        C→S→C  荷物受け渡しの正当性確認 (RemoteFunction)
@@ -29,6 +30,7 @@ local DEFINITIONS = {
 	BroadcastFlightState = "UnreliableRemoteEvent",
 	MissionUpdate = "RemoteEvent",
 	ProfileUpdate = "RemoteEvent",
+	WeatherUpdate = "RemoteEvent",
 	RequestTakeoff = "RemoteFunction",
 	RequestAcceptMission = "RemoteFunction",
 	RequestDelivery = "RemoteFunction",

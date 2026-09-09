@@ -25,6 +25,8 @@ local MissionController = require(script.MissionController)
 local TerminalController = require(script.TerminalController)
 local Shop = require(script.Shop)
 local Hud = require(script.Hud)
+local WeatherController = require(script.WeatherController)
+local SoundController = require(script.SoundController)
 
 local player = Players.LocalPlayer
 local remotes = Net.client()
@@ -46,8 +48,11 @@ local missions = MissionController.new(remotes)
 local terminals = TerminalController.new(missions)
 local shop = Shop.new(remotes)
 local hud = Hud.new()
+local weatherController = WeatherController.new()
+local sound = SoundController.new()
 
 predictor.onEvents = function(events)
+	sound:onFlightEvents(events)
 	if table.find(events, "Land") then
 		hud:flash("着陸")
 	elseif table.find(events, "Crash") then
@@ -73,6 +78,7 @@ input.onInput = function(rawInput)
 end
 missions.onResult = function(success, reason, payout)
 	if success then
+		sound:onDeliverySuccess()
 		hud:flash(string.format("配達成功！ +%d", math.floor(payout or 0)))
 	elseif reason == "not_at_destination" then
 		hud:flash("まだ目的地に到着していません")
@@ -96,10 +102,16 @@ input:start()
 input:setEnabled(true)
 terminals:start()
 shop:start()
+weatherController:start()
+sound:start()
 
 remotes.ProfileUpdate.OnClientEvent:Connect(function(profile)
 	shop:applyProfile(profile)
 	hud:updateMoney(profile)
+end)
+
+remotes.WeatherUpdate.OnClientEvent:Connect(function(weatherName)
+	weatherController:apply(weatherName)
 end)
 
 remotes.BroadcastFlightState.OnClientEvent:Connect(function(payload)

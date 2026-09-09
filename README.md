@@ -259,17 +259,19 @@ Roblox のマルチプレイ。パッドで操作する自由飛行と、貨物�
 運ぶ配達ミッションの2本柱で、配達で稼いだお金が機体購入・アップグレードに
 つながる ([設計図](https://claude.ai/code/artifact/375b06f3-8063-43da-9f9c-45d5a2e2ed42) を
 実装に落とし込んだもの)。3Dモデル・テクスチャ・音源アセットは一切使わず、
-Part と手続き生成だけで機体・ターミナルを組んでいる。
+Part と手続き生成だけで機体・ターミナル・山岳/海洋/都市の自由飛行エリアを組んでいる。
 
 ```bash
 rokit install                                          # rojo/stylua/selene を導入
 rojo serve roblox/sky-carrier/default.project.json     # Studio の Rojo プラグインから Connect
-cd roblox/sky-carrier && luau verify.luau               # Studio 無しでロジックを検証 (116項目)
+cd roblox/sky-carrier && luau verify.luau               # Studio 無しでロジックを検証 (155項目)
 ```
 
 - 左スティックでロール/ピッチ、右スティックでヨー、R2/L2でスロットル、
-  ×でブースト、○で着陸装置、□で荷物投下
+  ×でブースト、○で着陸装置、□で荷物投下、R1でターミナルのミッション受注、
+  タッチパッドで機体ショップ開閉
 - 練習機 / 貨物輸送機 / 曲技機の3クラス。エンジン・燃料・貨物ベイをアップグレード可能
+- 天候 (Clear/Cloudy/Storm) が4分周期で決定的に切り替わり、Lightingへなめらかに反映
 
 ### サーバ権威 + クライアント予測
 
@@ -288,12 +290,13 @@ cd roblox/sky-carrier && luau verify.luau               # Studio 無しでロジ
 
 ### Studio を開かずに回るテスト
 
-ロジックの中核 (`Config` / `FlightModel` / `Mission` / `AntiCheat`) は
-Roblox API 非依存の純関数で、`verify.luau` が「全速スロットルを続ければ離陸するか」
-「着陸装置と降下速度で Land / Crash が正しく分かれるか」「同じ入力列から必ず同じ
-結果になるか」「ミッションの報酬が計算式どおりか」「テレポート級の移動申告を
-弾けるか」など116項目を検査する。`.github/workflows/sky-carrier-verify.yml` が
-push ごとに実行する。
+ロジックの中核 (`Config` / `FlightModel` / `Mission` / `AntiCheat` / `Terrain` /
+`Weather`) は Roblox API 非依存の純関数で、`verify.luau` が「全速スロットルを
+続ければ離陸するか」「着陸装置と降下速度で Land / Crash が正しく分かれるか」
+「同じ入力列から必ず同じ結果になるか」「ミッションの報酬が計算式どおりか」
+「テレポート級の移動申告を弾けるか」「地形が同じシードから同じ配置で、ゾーン
+半径の内側に収まるか」「天候が連続で同じにならないか」など155項目を検査する。
+`.github/workflows/sky-carrier-verify.yml` が push ごとに実行する。
 
 詳細は `roblox/sky-carrier/README.md`。
 

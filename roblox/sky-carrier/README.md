@@ -7,7 +7,7 @@
 [SKY-DES-001](https://claude.ai/code/artifact/375b06f3-8063-43da-9f9c-45d5a2e2ed42))。
 
 3Dモデル・テクスチャ・音源アセットを一切使わず、`roblox/domino-crash` と同じ方針で
-Part と手続き生成だけで機体・ターミナルを組んでいる。
+Part と手続き生成だけで機体・ターミナル・山岳/海洋/都市の3つの自由飛行エリアを組んでいる。
 
 ## 遊び方 (DualShock4 / Gamepad1)
 
@@ -31,6 +31,21 @@ Part と手続き生成だけで機体・ターミナルを組んでいる。
 ミッションを受注し、目的地ターミナルへ着陸装置を出して着地すると □ で届けられる。
 制限時間を余して届けるほどタイムボーナスが乗る。すべてのターミナルに常に
 ミッションがあるとは限らない (在庫は `MissionService` がプレイヤーごとに巡回生成する)。
+
+## ワールド
+
+中央空港を起点に、北 (工業地帯) / 東 (港湾) / 南 (農地) の貨物ターミナルへ
+配達し、ターミナルの外側には自由飛行のための3エリアが手続き生成されている。
+
+| エリア | 内容 | 生成 |
+|---|---|---|
+| 山岳 | 高さ70〜420 studsの山を22個、円環状に配置 | `Terrain.mountains` |
+| 海洋 | 非衝突の水面 + 島6個。飛行機は水面上を通過するだけで着水は扱わない | `Terrain.islands` |
+| 都市 | 高さ24〜220 studsのビル群 (最大46棟)。ジッターを掛けた格子配置 | `Terrain.buildings` |
+
+天候は `Clear` / `Cloudy` / `Storm` を4分ごとに周期切り替え (連続で同じ天候には
+ならない)。`Lighting` の霧・明るさ・環境光へ緩やかに反映されるだけの見た目の
+演出で、ミッション報酬の天候倍率とは独立している (詳細は既知の割り切り参照)。
 
 ## 機体クラス
 
@@ -69,12 +84,13 @@ rojo serve roblox/sky-carrier/default.project.json
 
 ## Studio を開かずに検証する
 
-飛行の物理・ミッションの報酬計算・不正対策の判定条件 (`FlightModel` /
-`Mission` / `AntiCheat`) は Roblox API を一切参照しない純関数として書いてあり、
+飛行の物理・ミッションの報酬計算・不正対策の判定条件・地形生成・天候の周期
+(`FlightModel` / `Mission` / `AntiCheat` / `Terrain` / `Weather`) は
+Roblox API を一切参照しない純関数として書いてあり、
 [Luau CLI](https://github.com/luau-lang/luau/releases) だけで実行できる。
 
 ```bash
-cd roblox/sky-carrier && luau verify.luau     # 116 項目
+cd roblox/sky-carrier && luau verify.luau     # 155 項目
 ```
 
 検査しているのは、Studio で目視しても気付きにくい種類のことだけ:
@@ -88,6 +104,8 @@ cd roblox/sky-carrier && luau verify.luau     # 116 項目
 | ブースト込みでも速度上限を超えない | 上限速度のクランプが効いているか |
 | ミッションの報酬・制限時間が計算式どおり | 距離・積載量・天候倍率のパラメータが実際に効いているか |
 | テレポート級の移動・送信フラッドを弾く | 不正対策 (AntiCheat) が実際に効いているか |
+| 地形が同じシードから同じ配置で生成される / ゾーン半径の内側に収まる | Studio を開かずに配置ミス (半径外にはみ出す等) を検出できるか |
+| 天候が連続で同じにならない / 同じ時刻からは同じ天候になる | 周期の計算式が壊れて「ずっと同じ天候」「毎回ランダム」になっていないか |
 
 `.github/workflows/sky-carrier-verify.yml` が push ごとにこれを実行する。
 
@@ -135,6 +153,21 @@ cd roblox/sky-carrier && luau verify.luau     # 116 項目
 出発地・目的地・積載量・天候倍率が出る。Roblox の `Random` を使わないのは
 Luau CLI からも同じ数列を再現するため (`verify.luau` の決定性検査)。
 
+### 地形も天候も「配置だけ」を純関数が決める
+
+`Terrain.luau` は `Mission.luau` / `domino-crash/Blueprint.luau` と同じ自前の
+32bit LCG を使い、ゾーンの種類とシードから山・島・ビルの座標とサイズだけを
+返す。実際に Part を生成する `TerrainBuilder.luau` は Roblox 依存の薄い層で、
+Studio を開かなくても `verify.luau` が「同じシードから同じ配置になるか」
+「全部ゾーン半径の内側に収まっているか」「最高点が高度上限を超えないか」を
+検証できる。
+
+天候も同じ考え方で、`Weather.at(serverSeconds, cfg)` は今が何周期目かを
+`serverSeconds` から計算し、直前の天候を除外した候補から決定的に1つ選ぶ
+(連続で同じ天候にならない)。サーバは変化があったときだけ `WeatherUpdate` を
+送り、クライアント (`WeatherController`) は `Lighting` の値を6秒かけて
+なめらかに補間する。
+
 ### 演出はサーバを介さない
 
 サーバが送るのは位置・向き・燃料・接地状態などの数値だけ (`BroadcastFlightState`)。
@@ -159,10 +192,20 @@ Luau CLI からも同じ数列を再現するため (`verify.luau` の決定性�
   (`no_offer_here`)。これは意図的な仕様で、常にどのターミナルでも
   受注できるようにしたい場合は `MissionService:refreshOffersFor` で
   ターミナルごとに最低1件を保証するよう変更する。
-* **天候・雲の見た目は無い。** `Config.mission.weatherMultiplierRange` は
-  報酬計算にだけ効いていて、実際の天候演出 (視界不良など) は
-  ロードマップの「マップ拡張・演出」フェーズで扱う想定。
+* **ミッションの天候倍率と、見た目の天候は連動していない。**
+  `Config.mission.weatherMultiplierRange` はミッションごとに独立した
+  ランダム値で「その配達ルートの天候」を表し、ワールド全体の見た目を
+  変える `Weather.luau` の周期とは別物。連動させる場合は
+  `MissionService:refreshOffersFor` が `WeatherService:current_()` を
+  参照して倍率を決めるように変更する。
+* **雲・雨・雷などの粒子演出は無い。** `WeatherController` は `Lighting`
+  の霧・明るさ・環境光を補間するだけの下地で、Storm でも実際に雨は
+  降らない。
 * **音は鳴らない。** `domino-crash` と同じく外部アセット0本の方針のため。
+  `Config.sound` に `rbxassetid://` を入れれば `SoundController` が
+  ブースト・着陸・墜落・配達成功時に鳴らす (未設定分は無音のまま)。
+* **海は着水判定を持たない。** `Ocean` ゾーンの水面パーツは非衝突。
+  水没・浮力などの表現は今回のスコープ外。
 
 ## ファイル
 
@@ -172,14 +215,18 @@ src/shared/     Roblox API 非依存の純ロジック (verify.luau が直接 re
   FlightModel   飛行の物理モデル (姿勢・推力・重力・失速・燃料・離着陸判定)
   Mission       配達ミッションの生成・報酬計算・成否判定
   AntiCheat     移動申告の受理条件 (テレポート・フラッド対策)
+  Terrain       自由飛行エリア (山岳・海洋・都市) の地形配置の手続き生成
+  Weather       天候の決定的な周期切り替え
   Net           リモートの定義 (ここだけ Roblox 依存)
 
 src/server/
-  init.server        配線 (ProfileUpdate の送信もここでまとめて行う)
+  init.server        配線 (ProfileUpdate / WeatherUpdate の送信もここでまとめて行う)
   FlightService      位置の権威。FlightModel を実行し、AntiCheat で検査してから確定
   MissionService      ミッションの提示・受注・配達判定
   PlayerDataService   所持金・所有機体・アップグレードの DataStore 永続化
   WorldBuilder        中央空港・貨物ターミナル3か所を Part + ProximityPrompt で組む
+  TerrainBuilder       Terrain.luau の配置から山・島・ビルの Part を生成
+  WeatherService       Weather.luau を実行し、変化があったときだけ全員へ配信
 
 src/client/
   init.client       配線
@@ -191,5 +238,7 @@ src/client/
   MissionController    ミッションの受注・配達申告
   TerminalController   ターミナルの ProximityPrompt を MissionController につなぐ
   Shop                 機体購入・乗り換え・アップグレードUI (タッチパッドで開閉)
+  WeatherController     Lighting (霧・明るさ・環境光) への反映
+  SoundController       Config.sound の rbxassetid を鳴らす (未設定なら無音)
   Hud                 高度計・速度計・所持金・ミッションバー
 ```
