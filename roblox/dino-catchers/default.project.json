@@ -19,7 +19,55 @@
       "Dinos": { "$path": "src/Workspace/Dinos" }
     },
     "Lighting": {
-      "$className": "Lighting"
+      "$className": "Lighting",
+      "$properties": {
+        "ClockTime": 13.5,
+        "GeographicLatitude": 35,
+        "Brightness": 3,
+        "Ambient": [0.36, 0.36, 0.4],
+        "OutdoorAmbient": [0.58, 0.6, 0.64],
+        "ColorShift_Top": [1, 0.96, 0.88],
+        "ColorShift_Bottom": [0, 0, 0],
+        "EnvironmentDiffuseScale": 1,
+        "EnvironmentSpecularScale": 0.6,
+        "ExposureCompensation": 0.1,
+        "GlobalShadows": true,
+        "ShadowSoftness": 0.25,
+        "FogEnd": 100000
+      },
+      "Atmosphere": {
+        "$className": "Atmosphere",
+        "$properties": {
+          "Density": 0.28,
+          "Offset": 0.2,
+          "Color": [0.78, 0.86, 0.95],
+          "Decay": [0.55, 0.68, 0.82],
+          "Glare": 0.15,
+          "Haze": 1.2
+        }
+      },
+      "Sky": {
+        "$className": "Sky",
+        "$properties": {
+          "SunAngularSize": 14,
+          "MoonAngularSize": 9
+        }
+      },
+      "SunRays": {
+        "$className": "SunRaysEffect",
+        "$properties": {
+          "Intensity": 0.04,
+          "Spread": 0.6
+        }
+      },
+      "ColorCorrection": {
+        "$className": "ColorCorrectionEffect",
+        "$properties": {
+          "Brightness": 0.02,
+          "Contrast": 0.06,
+          "Saturation": 0.12
+        }
+      }
     },
     "StarterPack": {
       "TamingGun": { "$path": "src/StarterPack/TamingGun" }
