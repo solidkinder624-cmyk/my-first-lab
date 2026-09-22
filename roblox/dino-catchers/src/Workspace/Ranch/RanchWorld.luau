@@ -3,11 +3,17 @@
 -- 使い方（サーバーのスクリプトから）:
 --   local RanchWorld = require(workspace:WaitForChild("Ranch"):WaitForChild("RanchWorld"))
 --   RanchWorld.waitUntilReady()            -- 地形と柵ができあがるまで待つ（座標の計算だけなら待たなくてよい）
+--       最大 DinoConfig.World.ReadyTimeout 秒。時間切れなら警告を出して false を返す
 --
 -- ■ 拠点スロット（1人1つ。6スロットを南側に東西一列で用意）
 --   RanchWorld.getSlotCount() → number
---   RanchWorld.claimSlot(player) → slotIndex?      … 空きスロットを割り当てる（すでに持っていればそれを返す。満員なら nil）
---   RanchWorld.releaseSlot(player)                 … 返す（退出時は自動で返す）
+--   RanchWorld.claimSlot(player) → slotIndex?      … 空きスロットを割り当てる（すでに持っていればそれを返す）
+--       満員・ワールド完成待ちの時間切れ・待っている間に退出した場合は nil
+--   RanchWorld.releaseSlot(player)                 … 返す。返したあと SlotReleased が発火する
+--   RanchWorld.SlotReleased: Signal                … (player, slotIndex) スロットが空きに戻ったとき
+--       退出時の自動解放について: Players.PlayerRemoving の中では releaseSlot を task.defer で遅らせて呼ぶ。
+--       そのため他の担当は自分の PlayerRemoving 処理の中でまだ getSlotIndexForPlayer(player) を使える。
+--       解放後に片付けをしたい場合は SlotReleased:Connect(function(player, slotIndex) ... end) を使う（推奨）
 --   RanchWorld.getSlotIndexForPlayer(player) → slotIndex?
 --   RanchWorld.getSlotOwnerUserId(slotIndex) → number（0 = 空き）
 --   RanchWorld.getSlotFolder(slotIndex) → Folder   … Workspace.Ranch.Slots.Slot<N>
@@ -43,7 +49,9 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
-local DinoConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("DinoConfig"))
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local DinoConfig = require(Shared:WaitForChild("DinoConfig"))
+local Signal = require(Shared:WaitForChild("Signal"))
 local WorldLayout = require(script.Parent:WaitForChild("WorldLayout"))
 local RanchBuilder = require(script.Parent:WaitForChild("RanchBuilder"))
 local TerrainGen = require(script.Parent:WaitForChild("TerrainGen"))
@@ -51,6 +59,9 @@ local TerrainGen = require(script.Parent:WaitForChild("TerrainGen"))
 local RanchFolder = script.Parent
 
 local RanchWorld = {}
+
+-- スロットが空きに戻ったとき (player, slotIndex) で発火する
+RanchWorld.SlotReleased = Signal.new()
 
 -- 計算の本体（WorldBoot もこれを使って地形・柵を作る）
 local layout = WorldLayout.new(DinoConfig)
@@ -77,16 +88,37 @@ function RanchWorld.isReady(): boolean
 	return RanchFolder:GetAttribute("WorldReady") == true
 end
 
--- 地形・柵ができあがるまで待つ。timeout 秒（省略時は無制限）で諦めたら false
+-- 地形・柵ができあがるまで待つ（属性 WorldReady の変化をイベントで待つ）。
+-- timeout 秒（省略時 DinoConfig.World.ReadyTimeout）で諦めたら警告を出して false
 function RanchWorld.waitUntilReady(timeout: number?): boolean
-	local started = os.clock()
-	while not RanchWorld.isReady() do
-		if timeout and os.clock() - started >= timeout then
-			return false
-		end
-		task.wait(0.1)
+	if RanchWorld.isReady() then
+		return true
 	end
-	return true
+	local limit = timeout or DinoConfig.World.ReadyTimeout
+	local thread = coroutine.running()
+	local finished = false
+	local connection
+	local function resume(result: boolean)
+		if finished then
+			return
+		end
+		finished = true
+		connection:Disconnect()
+		task.spawn(thread, result)
+	end
+	connection = RanchFolder:GetAttributeChangedSignal("WorldReady"):Connect(function()
+		if RanchWorld.isReady() then
+			resume(true)
+		end
+	end)
+	local timer = task.delay(limit, resume, false)
+	local ok = coroutine.yield()
+	if ok then
+		task.cancel(timer)
+	else
+		warn(string.format("[RanchWorld] ワールドの完成を %s 秒待ったが完成しなかった", tostring(limit)))
+	end
+	return ok
 end
 
 -- ── スロット ──────────────────────────────────────────
@@ -108,8 +140,9 @@ end
 function RanchWorld.getSlotSpawnCFrame(slotIndex: number): CFrame
 	checkSlot(slotIndex)
 	local gate = layout:getGateInfo(slotIndex, plotsBySlot[slotIndex])
-	local position = Vector3.new(gate.OutsideX, ground() + 3, gate.OutsideZ)
-	return CFrame.lookAt(position, Vector3.new(gate.X, ground() + 3, gate.Z))
+	local y = ground() + DinoConfig.World.SlotSpawnHeightOffset
+	local position = Vector3.new(gate.OutsideX, y, gate.OutsideZ)
+	return CFrame.lookAt(position, Vector3.new(gate.X, y, gate.Z))
 end
 
 -- 持ち主の管理はスロットの属性 OwnerUserId（0 = 空き）で行う
@@ -129,7 +162,12 @@ end
 
 function RanchWorld.claimSlot(player: Player): number?
 	assert(RunService:IsServer(), "claimSlot はサーバーからだけ呼ぶ")
-	RanchWorld.waitUntilReady()
+	if not RanchWorld.waitUntilReady() then
+		return nil
+	end
+	if not player.Parent then
+		return nil -- 待っている間に退出した
+	end
 	local existing = RanchWorld.getSlotIndexForPlayer(player)
 	if existing then
 		return existing
@@ -153,8 +191,9 @@ function RanchWorld.releaseSlot(player: Player)
 	local folder = RanchWorld.getSlotFolder(index)
 	if folder then
 		folder:SetAttribute("OwnerUserId", 0)
-		RanchBuilder.setSignText(folder, string.format("空き拠点 %d", index))
+		RanchBuilder.setSignText(folder, string.format(DinoConfig.Text.VacantRanchLabel, index))
 	end
+	RanchWorld.SlotReleased:Fire(player, index)
 end
 
 -- ── 柵の内側 ──────────────────────────────────────────
@@ -194,7 +233,7 @@ end
 -- ── プレイヤーの出現地点 ─────────────────────────────────
 function RanchWorld.getPlayerSpawnCFrame(): CFrame
 	local p = layout.PlayerSpawn
-	return CFrame.new(p.X, p.Y + 4, p.Z)
+	return CFrame.new(p.X, p.Y + DinoConfig.World.PlayerSpawnHeightOffset, p.Z)
 end
 
 -- ── 野生 ─────────────────────────────────────────────
@@ -253,9 +292,12 @@ function RanchWorld.addPlot(slotIndex: number, px: number, pz: number): (boolean
 	return true, nil
 end
 
--- 退出したプレイヤーのスロットは自動で空きに戻す
+-- 退出したプレイヤーのスロットは自動で空きに戻す。
+-- task.defer で遅らせるので、他の担当の PlayerRemoving 処理ではまだ getSlotIndexForPlayer が使える
 if RunService:IsServer() then
-	Players.PlayerRemoving:Connect(RanchWorld.releaseSlot)
+	Players.PlayerRemoving:Connect(function(player: Player)
+		task.defer(RanchWorld.releaseSlot, player)
+	end)
 end
 
 return RanchWorld

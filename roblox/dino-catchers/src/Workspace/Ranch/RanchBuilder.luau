@@ -139,7 +139,7 @@ local function buildGateSign(layout, slotFolder: Folder, slotIndex: number, plot
 	billboard.Name = "Billboard"
 	billboard.Size = UDim2.new(0, 220, 0, 36)
 	billboard.StudsOffset = Vector3.new(0, 2.5, 0)
-	billboard.MaxDistance = 120
+	billboard.MaxDistance = layout.World.RanchSignMaxDistance
 	billboard.Parent = beam
 	local label = Instance.new("TextLabel")
 	label.Name = "Label"
@@ -149,7 +149,7 @@ local function buildGateSign(layout, slotFolder: Folder, slotIndex: number, plot
 	label.TextScaled = true
 	label.TextColor3 = Color3.fromRGB(255, 255, 255)
 	label.TextStrokeTransparency = 0.4
-	label.Text = previousText or string.format("空き拠点 %d", slotIndex)
+	label.Text = previousText or string.format(layout.Text.VacantRanchLabel, slotIndex)
 	label.Parent = billboard
 end
 
@@ -224,7 +224,8 @@ function RanchBuilder.buildPlayerSpawn(layout, markersFolder: Folder): SpawnLoca
 	spawn.Anchored = true
 	spawn.Neutral = true
 	spawn.Duration = 0 -- 出現直後の無敵（ForceField）なし
-	spawn.Size = Vector3.new(12, 1, 12)
+	local padSize = layout.World.PlayerSpawnPadSize
+	spawn.Size = Vector3.new(padSize, 1, padSize)
 	spawn.CFrame = CFrame.new(p.X, p.Y + 0.5, p.Z)
 	spawn.Color = Color3.fromRGB(190, 170, 130)
 	spawn.Material = Enum.Material.WoodPlanks

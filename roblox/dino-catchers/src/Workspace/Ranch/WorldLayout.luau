@@ -6,11 +6,8 @@
 --
 -- 座標系: +X = 東、-Z = 北（野生エリア側）、+Z = 南（拠点側）。Y = 高さ。単位は studs。
 --
--- 設定値について（CLAUDE.md 5章「設定値は DinoConfig 1か所」）:
---   DinoConfig.Ranch / DinoConfig.Wild にある値はそのまま使う。
---   地形などワールド用の値は DinoConfig にまだ無いため、下の DEFAULTS を暫定値として持ち、
---   DinoConfig.World / DinoConfig.Ranch に同名キーが追加されたらそちらを優先する。
---   （DEFAULTS の中身を DinoConfig へ移すよう data-architect に依頼済み。移設後はこの表を消してよい）
+-- 設定値はすべて DinoConfig（World / Ranch / Wild）から読む（CLAUDE.md 5章）。
+-- 起動時に必要なキーがそろっているかを確かめ、足りなければその場でエラーにする。
 
 local WorldLayout = {}
 WorldLayout.__index = WorldLayout
@@ -18,59 +15,45 @@ WorldLayout.__index = WorldLayout
 -- Terrain のボクセル1マスの大きさ（Roblox の仕様で 4 固定。設定値ではない）
 local VOXEL = 4
 
--- ── 暫定の設定値（DinoConfig へ移設予定） ─────────────────
-WorldLayout.DEFAULTS = {
-	-- → DinoConfig.World に追加してほしい値
+-- ── 小さな道具 ────────────────────────────────────────
+-- 必要な設定キー（DinoConfig.<セクション>.<キー>）
+local REQUIRED_KEYS = {
 	World = {
-		Seed = 20260922, -- 地形・岩・木の配置の乱数シード（毎回同じ地図になる）
-		MapSizeX = 1152, -- マップの東西の長さ（中心が原点）。8の倍数
-		MapSizeZ = 896, -- マップの南北の長さ。8の倍数
-		GroundLevel = 0, -- 拠点・広場の平らな地面の高さ。4の倍数
-		TerrainBottom = -24, -- 地形の底。4の倍数
-		HillAmplitude = 7, -- ゆるい起伏の高さ
-		HillScale = 170, -- ゆるい起伏の横幅（大きいほどなだらか）
-		DetailAmplitude = 2.5, -- 細かいでこぼこの高さ
-		DetailScale = 45, -- 細かいでこぼこの横幅
-		EdgeHillWidth = 64, -- マップの外周を囲う丘の幅（この内側が歩き回れる範囲）
-		EdgeHillHeight = 34, -- 外周の丘の高さ
-		FlattenBlend = 48, -- 拠点エリアの平地から自然地形へなめらかにつなぐ距離
-		WaterLevel = -4, -- 池の水面の高さ（ボクセルの境目に合わせて4の倍数）
-		PondCount = 2, -- 池の数
-		PondRadiusMin = 22,
-		PondRadiusMax = 36,
-		PondDepth = 6, -- 水面から池の底までの深さ
-		RockCount = 14, -- 岩（Terrain の Rock 球）の数
-		RockRadiusMin = 3,
-		RockRadiusMax = 7,
-		TreeCount = 26, -- 木（パーツ2個）の数
-		BoundaryWallHeight = 200, -- マップ端の見えない壁の高さ
-		WildMaxSlope = 0.6, -- 野生恐竜を出してよい地面の傾き（高さの差 / 距離）の上限
+		"Seed", "MapSizeX", "MapSizeZ", "GroundLevel", "TerrainBottom",
+		"HillAmplitude", "HillScale", "DetailAmplitude", "DetailScale",
+		"EdgeHillWidth", "EdgeHillHeight", "FlattenBlend", "BoundaryWallHeight",
+		"RockMaterialSlope", "GroundMaterialSlope",
+		"WaterLevel", "PondCount", "PondRadiusMin", "PondRadiusMax", "PondDepth",
+		"PondEdgeMargin", "PondSpacing", "PondShoreSlope",
+		"RockCount", "RockRadiusMin", "RockRadiusMax", "RockEdgeMargin", "RockPondGap", "RockSpacing",
+		"TreeCount", "TreeEdgeMargin", "TreePondGap", "TreeRockGap", "TreeSpacing", "TreeTrunkRadius",
+		"TreeTrunkHeightMin", "TreeTrunkHeightMax", "TreeCanopySizeMin", "TreeCanopySizeMax",
+		"WildMaxSlope", "WildSpawnObstacleMargin",
+		"SlotSpawnHeightOffset", "PlayerSpawnHeightOffset", "PlayerSpawnPadSize",
+		"RanchSignMaxDistance", "ReadyTimeout", "ReadyPollInterval",
 	},
-	-- → DinoConfig.Ranch に追加してほしい値
 	Ranch = {
-		SlotCount = 6, -- 拠点スロットの数（= 1サーバーで拠点を持てる最大人数）
-		SlotSpacing = 168, -- スロット1つ分の敷地（正方形）の一辺。初期2x2区画の周りに1区画ずつ足せる広さ
-		RanchBackGap = 16, -- スロット敷地の奥と外周の丘との間の余白
-		PlazaDepth = 32, -- スロットの前（北側）を東西に走る広場・通路の奥行き
-		WildEdgeBuffer = 40, -- 広場の端から野生の出現範囲までの最低距離
-		GateWidth = 10, -- 柵の入口（すき間）の幅
-		PostSpacing = 10, -- 柵の杭の間隔
-		SpawnOffsetFromGate = 10, -- 入口の外側、この距離の位置を「そのスロットの出入り地点」にする
+		"FencePlotSize", "InitialPlotsX", "InitialPlotsZ", "FenceHeight", "FenceMargin",
+		"SlotCount", "SlotSpacing", "RanchBackGap", "PlazaDepth", "WildEdgeBuffer",
+		"GateWidth", "PostSpacing", "SpawnOffsetFromGate",
 	},
+	Wild = { "MinSpawnDistanceFromRanch" },
 }
 
--- ── 小さな道具 ────────────────────────────────────────
-local function merge(defaults: { [string]: any }, override: { [string]: any }?): { [string]: any }
-	local result = {}
-	for key, value in defaults do
-		result[key] = value
-	end
-	if override then
-		for key, value in override do
-			result[key] = value
+-- 必要なキーがすべて数値で入っているか確かめる（足りなければ assert でエラー）
+function WorldLayout.validateConfig(dinoConfig)
+	for section, keys in REQUIRED_KEYS do
+		local values = dinoConfig[section]
+		assert(type(values) == "table", "DinoConfig." .. section .. " がありません")
+		for _, key in keys do
+			assert(
+				type(values[key]) == "number",
+				"DinoConfig." .. section .. "." .. key .. " がありません（数値が必要）"
+			)
 		end
 	end
-	return result
+	assert(type(dinoConfig.Text) == "table" and type(dinoConfig.Text.VacantRanchLabel) == "string",
+		"DinoConfig.Text.VacantRanchLabel がありません（文字列が必要）")
 end
 
 local function clamp01(t: number): number
@@ -124,10 +107,12 @@ WorldLayout.Prng = Prng
 -- ── 生成 ─────────────────────────────────────────────
 -- dinoConfig: ReplicatedStorage.Shared.DinoConfig の中身（テーブル）
 function WorldLayout.new(dinoConfig)
+	WorldLayout.validateConfig(dinoConfig)
 	local self = setmetatable({}, WorldLayout)
-	self.World = merge(WorldLayout.DEFAULTS.World, dinoConfig.World)
-	self.Ranch = merge(WorldLayout.DEFAULTS.Ranch, dinoConfig.Ranch)
+	self.World = dinoConfig.World
+	self.Ranch = dinoConfig.Ranch
 	self.Wild = dinoConfig.Wild
+	self.Text = dinoConfig.Text
 
 	local w, r = self.World, self.Ranch
 	self.HalfX = w.MapSizeX / 2
@@ -202,10 +187,10 @@ function WorldLayout.new(dinoConfig)
 	while #self.Ponds < w.PondCount and attempts < 500 do
 		attempts += 1
 		local radius = rng:NextNumber(w.PondRadiusMin, w.PondRadiusMax)
-		local margin = radius + 40
+		local margin = radius + w.PondEdgeMargin
 		local x = rng:NextNumber(wild.MinX + margin, wild.MaxX - margin)
 		local z = rng:NextNumber(wild.MinZ + margin, wild.MaxZ - margin)
-		if farFromAll(self.Ponds, x, z, radius + 80) then
+		if farFromAll(self.Ponds, x, z, radius + w.PondSpacing) then
 			table.insert(self.Ponds, { X = x, Z = z, Radius = radius })
 		end
 	end
@@ -213,28 +198,31 @@ function WorldLayout.new(dinoConfig)
 	while #self.Rocks < w.RockCount and attempts < 2000 do
 		attempts += 1
 		local radius = rng:NextNumber(w.RockRadiusMin, w.RockRadiusMax)
-		local x = rng:NextNumber(wild.MinX + 16, wild.MaxX - 16)
-		local z = rng:NextNumber(wild.MinZ + 16, wild.MaxZ - 16)
-		if farFromAll(self.Ponds, x, z, radius + 16) and farFromAll(self.Rocks, x, z, radius + 30) then
+		local x = rng:NextNumber(wild.MinX + w.RockEdgeMargin, wild.MaxX - w.RockEdgeMargin)
+		local z = rng:NextNumber(wild.MinZ + w.RockEdgeMargin, wild.MaxZ - w.RockEdgeMargin)
+		if
+			farFromAll(self.Ponds, x, z, radius + w.RockPondGap)
+			and farFromAll(self.Rocks, x, z, radius + w.RockSpacing)
+		then
 			table.insert(self.Rocks, { X = x, Z = z, Radius = radius })
 		end
 	end
 	attempts = 0
 	while #self.Trees < w.TreeCount and attempts < 2000 do
 		attempts += 1
-		local x = rng:NextNumber(wild.MinX + 8, wild.MaxX - 8)
-		local z = rng:NextNumber(wild.MinZ + 8, wild.MaxZ - 8)
+		local x = rng:NextNumber(wild.MinX + w.TreeEdgeMargin, wild.MaxX - w.TreeEdgeMargin)
+		local z = rng:NextNumber(wild.MinZ + w.TreeEdgeMargin, wild.MaxZ - w.TreeEdgeMargin)
 		if
-			farFromAll(self.Ponds, x, z, 14)
-			and farFromAll(self.Rocks, x, z, 12)
-			and farFromAll(self.Trees, x, z, 24)
+			farFromAll(self.Ponds, x, z, w.TreePondGap)
+			and farFromAll(self.Rocks, x, z, w.TreeRockGap)
+			and farFromAll(self.Trees, x, z, w.TreeSpacing)
 		then
 			table.insert(self.Trees, {
 				X = x,
 				Z = z,
-				Radius = 1.5, -- 幹の半径（出現判定用）
-				TrunkHeight = rng:NextNumber(8, 13),
-				CanopySize = rng:NextNumber(9, 15),
+				Radius = w.TreeTrunkRadius, -- 幹の半径（出現判定用）
+				TrunkHeight = rng:NextNumber(w.TreeTrunkHeightMin, w.TreeTrunkHeightMax),
+				CanopySize = rng:NextNumber(w.TreeCanopySizeMin, w.TreeCanopySizeMax),
 				Shade = rng:NextNumber(0, 1),
 			})
 		end
@@ -271,7 +259,7 @@ function WorldLayout:getGroundHeight(x: number, z: number): number
 			local t = r / pond.Radius
 			target = w.WaterLevel - w.PondDepth * (1 - t * t)
 		else
-			target = w.WaterLevel + (r - pond.Radius) * 0.25
+			target = w.WaterLevel + (r - pond.Radius) * w.PondShoreSlope
 		end
 		h = math.min(h, target :: number)
 	end
@@ -306,9 +294,9 @@ function WorldLayout:getSurfaceMaterialName(x: number, z: number, height: number
 		return "Sand" -- 水辺
 	end
 	local slope = self:getSlope(x, z)
-	if slope > 0.9 then
+	if slope > w.RockMaterialSlope then
 		return "Rock"
-	elseif slope > 0.55 then
+	elseif slope > w.GroundMaterialSlope then
 		return "Ground"
 	end
 	return "Grass"
@@ -590,15 +578,16 @@ function WorldLayout:isWildSpawnable(x: number, z: number): (boolean, string?)
 	if self:isInWater(x, z) then
 		return false, "Water"
 	end
+	local obstacleMargin = self.World.WildSpawnObstacleMargin
 	for _, rock in self.Rocks do
 		local dx, dz = x - rock.X, z - rock.Z
-		if math.sqrt(dx * dx + dz * dz) < rock.Radius + 3 then
+		if math.sqrt(dx * dx + dz * dz) < rock.Radius + obstacleMargin then
 			return false, "Rock"
 		end
 	end
 	for _, tree in self.Trees do
 		local dx, dz = x - tree.X, z - tree.Z
-		if math.sqrt(dx * dx + dz * dz) < tree.Radius + 3 then
+		if math.sqrt(dx * dx + dz * dz) < tree.Radius + obstacleMargin then
 			return false, "Tree"
 		end
 	end

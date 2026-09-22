@@ -111,7 +111,11 @@ local function placeRocks(terrain: Terrain, layout)
 end
 
 -- Terrain をすべて作り直す。既存の Terrain は消える（毎回同じ地形にするため）。
+-- 飛ばしたいときは Workspace.Ranch に属性 SkipProceduralTerrain = true を付ける（WorldBoot が見る）。
 function TerrainGen.generate(terrain: Terrain, layout)
+	-- ★このワールドの地形は手続き生成（プログラムで自動生成）。Studio で手作業で編集した Terrain は
+	--   ここで消えて、WorldLayout の計算どおりに作り直される。地形を変えたいときは
+	--   DinoConfig.World の値を変えること（手作業の地形を残したいなら SkipProceduralTerrain を使う）。
 	terrain:Clear()
 	applyMaterialColors(terrain)
 

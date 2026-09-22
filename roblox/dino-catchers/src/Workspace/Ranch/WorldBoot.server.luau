@@ -7,6 +7,8 @@
 --   3. 拠点スロット（区画ごとの柵・床の牧草）
 --   4. 野生の出現範囲の目印・木・マップ端の壁
 --   5. Workspace.Ranch の属性 WorldReady = true（RanchWorld.waitUntilReady() が返る）
+-- Workspace.Ranch に属性 SkipProceduralTerrain = true があると、2 と 3 の床塗りを飛ばす
+-- （Studio で手作業の地形を使って試したいとき用。柵・目印・木は作る）。
 -- 計算はすべて RanchWorld.Layout（= WorldLayout）が行う。
 
 local Ranch = script.Parent
@@ -35,14 +37,19 @@ local started = os.clock()
 local markers = newFolder("Markers")
 RanchBuilder.buildPlayerSpawn(layout, markers)
 
--- 2. 地形
-TerrainGen.generate(workspace.Terrain, layout)
+-- 2. 地形（手続き生成）
+local skipTerrain = Ranch:GetAttribute("SkipProceduralTerrain") == true
+if skipTerrain then
+	warn("[WorldBoot] SkipProceduralTerrain が true のため、地形の生成を飛ばした")
+else
+	TerrainGen.generate(workspace.Terrain, layout)
+end
 
 -- 3. 拠点スロット
 local slots = newFolder("Slots")
 for slotIndex = 1, RanchWorld.getSlotCount() do
 	local plots = RanchWorld.getPlots(slotIndex)
-	for _, plot in plots do
+	for _, plot in if skipTerrain then {} else plots do
 		TerrainGen.paintPlot(workspace.Terrain, layout, layout:getPlotRect(slotIndex, plot.PX, plot.PZ))
 	end
 	RanchBuilder.buildSlot(layout, slots, slotIndex, plots)
