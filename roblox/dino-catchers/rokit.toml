@@ -1,0 +1,7 @@
+# ツールのバージョン固定 (https://github.com/rojo-rbx/rokit)
+#   rokit install     ... 下記を導入
+#   rokit add <tool>  ... 追加・更新
+[tools]
+rojo = "rojo-rbx/rojo@7.4.4"
+stylua = "JohnnyMorganz/StyLua@2.0.2"
+selene = "Kampfkarren/selene@0.27.1"

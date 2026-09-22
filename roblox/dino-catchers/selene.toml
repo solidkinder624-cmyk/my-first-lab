@@ -1,0 +1,7 @@
+# Roblox の標準ライブラリ定義が必要:
+#   selene generate-roblox-std
+std = "roblox"
+
+[lints]
+# 型注釈のためだけに使う変数を許容する
+unused_variable = "warn"

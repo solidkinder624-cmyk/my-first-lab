@@ -1,0 +1,34 @@
+{
+  "name": "DinoCatchers",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "Shared": { "$path": "src/ReplicatedStorage/Shared" },
+      "Remotes": { "$path": "src/ReplicatedStorage/Remotes" }
+    },
+    "ServerScriptService": {
+      "Data": { "$path": "src/ServerScriptService/Data" },
+      "DinoAI": { "$path": "src/ServerScriptService/DinoAI" },
+      "Capture": { "$path": "src/ServerScriptService/Capture" }
+    },
+    "ServerStorage": {
+      "DinoModels": { "$path": "src/ServerStorage/DinoModels" }
+    },
+    "Workspace": {
+      "Ranch": { "$path": "src/Workspace/Ranch" },
+      "Dinos": { "$path": "src/Workspace/Dinos" }
+    },
+    "Lighting": {
+      "$className": "Lighting"
+    },
+    "StarterPack": {
+      "TamingGun": { "$path": "src/StarterPack/TamingGun" }
+    },
+    "StarterGui": { "$path": "src/StarterGui" },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "UI": { "$path": "src/StarterPlayer/StarterPlayerScripts/UI" }
+      }
+    }
+  }
+}
