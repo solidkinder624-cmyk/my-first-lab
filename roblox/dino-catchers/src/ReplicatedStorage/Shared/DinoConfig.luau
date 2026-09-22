@@ -137,6 +137,12 @@ DinoConfig.Taming = {
 	MaxSimultaneousTargetsPerPlayer = 1, -- 1人が同時に進捗を溜められる恐竜の数
 	-- 通知（TameProgressChanged）
 	ProgressBroadcastInterval = 0.1, -- 進捗変化をクライアントへ送る最短間隔（秒）
+	-- テイム中の足止めの自動解除（安全装置）。担当: dino-ai（DinoService.setTaming）
+	-- setTaming(true) の後、この秒数のあいだ再び setTaming(true) が来なければ自動で歩かせる。
+	-- capture-system が解除を呼び忘れた・プレイヤーが退出した等で恐竜が止まったままになるのを防ぐ。
+	-- DecayDelay（減衰が始まるまでの猶予）とは意味が違う: 減衰中も進捗が残っている間は足止めを続けたいので、
+	-- DecayDelay + ProgressMax / DecayPerSecond（= 0.5 + 4 = 4.5秒）より長くする。
+	TamingHoldTimeout = 6,
 }
 
 -- ── 野生恐竜の出現 ──────────────────────────────────────
@@ -147,6 +153,15 @@ DinoConfig.Wild = {
 	MinSpawnDistanceFromRanch = 80, -- 拠点の中心から最低これだけ離れた場所に出す
 	MinSpawnDistanceFromPlayer = 40, -- プレイヤーの目の前に急に湧かないための距離
 	-- 出現地点は Workspace 内の出現範囲（world-builder が用意）から選ぶ想定
+}
+
+-- ── 恐竜AI（野生・飼育共通） ───────────────────────────
+-- 担当: dino-ai
+DinoConfig.DinoAI = {
+	UpdateInterval = 0.25, -- 野生・飼育の恐竜の移動を更新する間隔（秒）。30頭を毎フレーム動かさないため
+	-- 拠点スロットの割り当てを再挑戦する間隔（秒）。
+	-- ワールドの完成を最大 World.ReadyTimeout 秒待っても割り当てられなかったとき、この間隔で再挑戦する
+	SlotClaimRetryInterval = 1,
 }
 
 -- ── 拠点（ワールド） ────────────────────────────────────
@@ -162,6 +177,7 @@ DinoConfig.Ranch = {
 	-- 性能目標（CLAUDE.md 5章）: 拠点に恐竜30頭が同時にいても重くならないこと
 	PerformanceTargetDinos = 30,
 	-- 飼育恐竜の移動更新（サーバー）の間隔。30頭を毎フレーム動かさないための目安
+	-- ※DinoAI.UpdateInterval へ移行中。dino-ai が切り替えたら削除
 	AIUpdateInterval = 0.25,
 	-- 拠点スロット（1サーバー内の各プレイヤーの拠点の置き場）と入口
 	SlotCount = 6, -- 拠点スロットの数（= 1サーバーで拠点を持てる最大人数）
@@ -232,7 +248,7 @@ DinoConfig.World = {
 	RanchSignMaxDistance = 120, -- 拠点の看板（BillboardGui）が見える最大距離
 	-- ワールドの完成待ち（RanchWorld.waitUntilReady など）
 	ReadyTimeout = 60, -- ワールドの完成を待つ最大秒数
-	ReadyPollInterval = 0.1, -- 完成したかを確認する間隔（秒）
+	ReadyPollInterval = 0.1, -- 完成したかを確認する間隔（秒）。※削除予定（後で依頼が来るまで残す）
 }
 
 -- ── 表示用の文字列 ──────────────────────────────────────
