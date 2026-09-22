@@ -182,6 +182,13 @@ DinoConfig.Save = {
 	SessionLockRetryDelay = 4, -- 同待つ間隔（秒）。超えたらロックを引き継ぐ
 	BindToCloseTimeout = 25, -- サーバー終了時に保存を待つ最大秒数（Roblox の上限は30秒）
 	InitialDataWaitTimeout = 15, -- RequestInitialData でロード完了を待つ最大秒数
+	PollInterval = 0.1, -- ロード完了・保存完了などを確認しながら待つときの間隔（秒）
+}
+
+-- ── 通信（Remotes） ─────────────────────────────────────
+-- 担当: data-architect（Shared.RemoteSpec が使う）
+DinoConfig.Net = {
+	RemoteWaitTimeout = 30, -- RemoteSpec.get が ReplicatedStorage.Remotes 内の Remote を待つ最大秒数
 }
 
 return DinoConfig

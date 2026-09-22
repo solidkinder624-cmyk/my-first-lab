@@ -61,6 +61,8 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local DinoConfig = require(script.Parent:WaitForChild("DinoConfig"))
+
 -- ── 送受信するデータの形 ────────────────────────────────
 export type TameState = "Taming" | "Decaying" | "Captured" | "Cancelled" | "Blocked"
 
@@ -115,7 +117,7 @@ RemoteSpec.NoticeKinds = {
 	Error = "Error",
 }
 
-local WAIT_TIMEOUT = 30
+local WAIT_TIMEOUT = DinoConfig.Net.RemoteWaitTimeout
 
 -- 名前から Remote を取り出す。一覧にない名前はエラーにして打ち間違いに早く気づけるようにする。
 function RemoteSpec.get(name: string): Instance

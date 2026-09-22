@@ -123,6 +123,9 @@ end
 -- 保存データ（や将来の手作業の修正）に壊れた値が入っていても、ゲームが落ちない形に直す。
 -- 方針: 値を「消す」のは形として使えないものだけ。知らない種の恐竜も消さずに残す
 --       （設定から種を外してもプレイヤーの所持が消えないように）。
+--       恐竜Lvは DinoGrowth.AbsoluteMaxLevel だけで頭打ちにする。種ごとの MaxLevel では削らない
+--       （あとで MaxLevel を下げても、保存済みのLvが永久に削られないように）。
+--       種ごとの上限は Lv を上げるとき（createDino / PlayerData.setDinoLevel）だけに使う。
 
 local function sanitizeDino(config: any, raw: any, now: number): OwnedDino?
 	if type(raw) ~= "table" then
@@ -131,11 +134,10 @@ local function sanitizeDino(config: any, raw: any, now: number): OwnedDino?
 	if type(raw.Id) ~= "string" or raw.Id == "" or type(raw.Species) ~= "string" or raw.Species == "" then
 		return nil
 	end
-	local maxLevel = ProfileSchema.maxDinoLevel(config, raw.Species)
 	return {
 		Id = raw.Id,
 		Species = raw.Species,
-		Level = toClampedInteger(raw.Level, 1, maxLevel, 1),
+		Level = toClampedInteger(raw.Level, 1, config.DinoGrowth.AbsoluteMaxLevel, 1),
 		CapturedAt = toClampedInteger(raw.CapturedAt, 0, math.huge, now),
 	}
 end

@@ -65,6 +65,7 @@ local store: DataStore? = nil
 local started = false
 local closing = false
 local pendingReleases = 0
+local initialDataWaiting: { [Player]: boolean } = {} -- RequestInitialData の待機中（1人1本まで）
 
 local remotes = {}
 
@@ -177,7 +178,7 @@ local function saveEntry(player: Player, entry: Entry, release: boolean): boolea
 	end
 	-- 同じプレイヤーの保存を重ねない（古い内容が後から書かれるのを防ぐ）
 	while entry.Saving do
-		task.wait(0.1)
+		task.wait(SaveConfig.PollInterval)
 	end
 	if not entry.CanSave then
 		return false
@@ -325,7 +326,7 @@ function PlayerData.waitForProfile(player: Player, timeout: number?): boolean
 		if not player.Parent or os.clock() >= deadline then
 			return false
 		end
-		task.wait(0.1)
+		task.wait(SaveConfig.PollInterval)
 	end
 	return true
 end
@@ -451,7 +452,9 @@ function PlayerData.setDinoLevel(player: Player, dinoId: string, level: number):
 		return false, "InvalidAmount"
 	end
 	local dino = entry.Profile.Dinos[index]
-	dino.Level = ProfileSchema.toClampedInteger(level, 1, ProfileSchema.maxDinoLevel(DinoConfig, dino.Species), 1)
+	-- 種の MaxLevel を超えて上げない。ただし MaxLevel を後から下げた場合でも、今のLvより下へは削らない
+	local maxLevel = math.max(ProfileSchema.maxDinoLevel(DinoConfig, dino.Species), dino.Level)
+	dino.Level = ProfileSchema.toClampedInteger(level, 1, maxLevel, dino.Level)
 	if remotes.DinoUpdated and player.Parent then
 		remotes.DinoUpdated:FireClient(player, ProfileSchema.deepCopy(dino))
 	end
@@ -561,8 +564,17 @@ function PlayerData.start()
 
 	-- 初期データの問い合わせ（クライアント起動時）
 	remotes.RequestInitialData.OnServerInvoke = function(player: Player)
-		if not PlayerData.waitForProfile(player, SaveConfig.InitialDataWaitTimeout) then
-			return { Loaded = false }
+		if not entries[player] then
+			-- ロード完了前の連打で待機スレッドが増えないよう、1人につき待機は1本だけにする
+			if initialDataWaiting[player] then
+				return { Loaded = false }
+			end
+			initialDataWaiting[player] = true
+			local loaded = PlayerData.waitForProfile(player, SaveConfig.InitialDataWaitTimeout)
+			initialDataWaiting[player] = nil
+			if not loaded then
+				return { Loaded = false }
+			end
 		end
 		local entry = entries[player]
 		if not entry then
@@ -603,7 +615,7 @@ function PlayerData.start()
 		end
 		local deadline = os.clock() + SaveConfig.BindToCloseTimeout
 		while (pendingReleases > 0 or next(loading) ~= nil) and os.clock() < deadline do
-			task.wait(0.1)
+			task.wait(SaveConfig.PollInterval)
 		end
 	end)
 end
