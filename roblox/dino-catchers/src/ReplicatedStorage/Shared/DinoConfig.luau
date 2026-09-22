@@ -46,7 +46,7 @@ export type SpeciesDef = {
 	WalkSpeed: number, -- 通常の歩く速さ
 	RunSpeed: number, -- 逃げる・急ぐときの速さ（フェーズ1で使わなくてもよい）
 	WanderRadius: number, -- 野生時: 出現地点からうろつく半径
-	RanchWanderRadius: number, -- 飼育時: 拠点の中心からうろつく半径（柵の内側に収まる範囲で使う）
+	RanchWanderRadius: number, -- 飼育時: 拠点の中心からうろつく半径。うろつく先は RanchWorld.clampToRanch で柵の内側に切り詰める
 	WanderPauseMin: number, -- 目的地に着いてから次に歩き出すまでの待ち時間（最小）
 	WanderPauseMax: number, -- 同（最大）
 	-- テイム
@@ -96,7 +96,8 @@ DinoConfig.Species = {
 		WalkSpeed = 10,
 		RunSpeed = 20,
 		WanderRadius = 60,
-		RanchWanderRadius = 40,
+		-- 初期の柵の内側は 40 - FenceMargin 4 = 36。うろつく先は RanchWorld.clampToRanch で柵の内側に切り詰める
+		RanchWanderRadius = 36,
 		WanderPauseMin = 3,
 		WanderPauseMax = 8,
 		TameTime = 10,
@@ -162,6 +163,82 @@ DinoConfig.Ranch = {
 	PerformanceTargetDinos = 30,
 	-- 飼育恐竜の移動更新（サーバー）の間隔。30頭を毎フレーム動かさないための目安
 	AIUpdateInterval = 0.25,
+	-- 拠点スロット（1サーバー内の各プレイヤーの拠点の置き場）と入口
+	SlotCount = 6, -- 拠点スロットの数（= 1サーバーで拠点を持てる最大人数）
+	SlotSpacing = 168, -- スロット1つ分の敷地（正方形）の一辺。初期2x2区画の周りに1区画ずつ足せる広さ
+	RanchBackGap = 16, -- スロット敷地の奥と外周の丘との間の余白
+	PlazaDepth = 32, -- スロットの前（北側）を東西に走る広場・通路の奥行き
+	WildEdgeBuffer = 40, -- 広場の端から野生の出現範囲までの最低距離
+	GateWidth = 10, -- 柵の入口（すき間）の幅
+	PostSpacing = 10, -- 柵の杭の間隔
+	SpawnOffsetFromGate = 10, -- 入口の外側、この距離の位置を「そのスロットの出入り地点」にする
+}
+
+-- ── ワールド（地形・池・岩・木・出現位置） ─────────────────
+-- 担当: world-builder（Workspace.Ranch の WorldLayout / RanchWorld / RanchBuilder が使う）
+DinoConfig.World = {
+	-- 地図の大きさ・地形
+	Seed = 20260922, -- 地形・岩・木の配置の乱数シード（毎回同じ地図になる）
+	MapSizeX = 1152, -- マップの東西の長さ（中心が原点）。8の倍数
+	MapSizeZ = 896, -- マップの南北の長さ。8の倍数
+	GroundLevel = 0, -- 拠点・広場の平らな地面の高さ。4の倍数
+	TerrainBottom = -24, -- 地形の底。4の倍数
+	HillAmplitude = 7, -- ゆるい起伏の高さ
+	HillScale = 170, -- ゆるい起伏の横幅（大きいほどなだらか）
+	DetailAmplitude = 2.5, -- 細かいでこぼこの高さ
+	DetailScale = 45, -- 細かいでこぼこの横幅
+	EdgeHillWidth = 64, -- マップの外周を囲う丘の幅（この内側が歩き回れる範囲）
+	EdgeHillHeight = 34, -- 外周の丘の高さ
+	FlattenBlend = 48, -- 拠点エリアの平地から自然地形へなめらかにつなぐ距離
+	BoundaryWallHeight = 200, -- マップ端の見えない壁の高さ
+	-- 地表の素材（傾き = 高さの差 / 距離）
+	RockMaterialSlope = 0.9, -- これより急な斜面は岩肌（Rock）
+	GroundMaterialSlope = 0.55, -- これより急な斜面は土（Ground）。それ以下は草（Grass）
+	-- 池
+	WaterLevel = -4, -- 池の水面の高さ（ボクセルの境目に合わせて4の倍数）
+	PondCount = 2, -- 池の数
+	PondRadiusMin = 22,
+	PondRadiusMax = 36,
+	PondDepth = 6, -- 水面から池の底までの深さ
+	PondEdgeMargin = 40, -- 野生エリアの端から池の縁までの最低距離（池の半径に足す）
+	PondSpacing = 80, -- 池どうしの間隔（池の半径に足す）
+	PondShoreSlope = 0.25, -- 池の縁から外側へ地面が上がる傾き
+	-- 岩（Terrain の Rock 球）
+	RockCount = 14, -- 岩の数
+	RockRadiusMin = 3,
+	RockRadiusMax = 7,
+	RockEdgeMargin = 16, -- 野生エリアの端から岩の中心までの最低距離
+	RockPondGap = 16, -- 池と岩の間隔（岩の半径に足す）
+	RockSpacing = 30, -- 岩どうしの間隔（岩の半径に足す）
+	-- 木（パーツ2個）
+	TreeCount = 26, -- 木の数
+	TreeEdgeMargin = 8, -- 野生エリアの端から木までの最低距離
+	TreePondGap = 14, -- 池と木の間隔
+	TreeRockGap = 12, -- 岩と木の間隔
+	TreeSpacing = 24, -- 木どうしの間隔
+	TreeTrunkRadius = 1.5, -- 幹の半径（出現判定用）
+	TreeTrunkHeightMin = 8, -- 幹の高さ（最小）
+	TreeTrunkHeightMax = 13, -- 幹の高さ（最大）
+	TreeCanopySizeMin = 9, -- 樹冠の大きさ（最小）
+	TreeCanopySizeMax = 15, -- 樹冠の大きさ（最大）
+	-- 野生恐竜の出現地点
+	WildMaxSlope = 0.6, -- 野生恐竜を出してよい地面の傾きの上限
+	WildSpawnObstacleMargin = 3, -- 岩・木から野生恐竜の出現地点までの余白（障害物の半径に足す）
+	-- プレイヤーの出現位置
+	SlotSpawnHeightOffset = 3, -- スロットの出入り地点に出すときの地面からの高さ
+	PlayerSpawnHeightOffset = 4, -- 共通の出現地点に出すときの地面からの高さ
+	PlayerSpawnPadSize = 12, -- 共通の出現地点（SpawnLocation）の一辺
+	-- 看板
+	RanchSignMaxDistance = 120, -- 拠点の看板（BillboardGui）が見える最大距離
+	-- ワールドの完成待ち（RanchWorld.waitUntilReady など）
+	ReadyTimeout = 60, -- ワールドの完成を待つ最大秒数
+	ReadyPollInterval = 0.1, -- 完成したかを確認する間隔（秒）
+}
+
+-- ── 表示用の文字列 ──────────────────────────────────────
+-- 担当: world-builder / ui-designer。string.format で使う
+DinoConfig.Text = {
+	VacantRanchLabel = "空き拠点 %d", -- 持ち主のいない拠点スロットの看板（%d = スロット番号）
 }
 
 -- ── セーブ（DataStore） ─────────────────────────────────
