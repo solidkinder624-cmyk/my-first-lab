@@ -1,0 +1,18 @@
+{
+  "job_id": "daily-ai-news-2026-11-28",
+  "idempotency_key": "daily-ai-news-2026-11-28",
+  "status": "failed",
+  "current_step": "ranking",
+  "retryable": false,
+  "article_count": 0,
+  "selected_count": 0,
+  "ranking_calls": 1,
+  "summary_regenerations": 0,
+  "fetch_attempts": 1,
+  "cost_usd": 0.05,
+  "notion_saved": false,
+  "slack_sent": false,
+  "last_error": "no valid summaries after regeneration budget exhausted",
+  "next_action": "collect_sources",
+  "updated_at": "2026-11-28T04:41:53.493344+00:00"
+}
